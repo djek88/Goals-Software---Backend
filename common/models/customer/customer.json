@@ -1,0 +1,59 @@
+{
+	"name": "Customer",
+	"base": "User",
+	"strict": true,
+	"options": {
+		"mongodb": {
+			"collection": "Customers"
+		},
+		"validateUpsert": true
+	},
+	"properties": {
+		"_id": {
+			"type": "ObjectId",
+			"generated": true,
+			"id": true
+		},
+		"firstName": {
+			"type": "String",
+			"required": true
+		},
+		"lastName": {
+			"type": "String",
+			"required": true
+		},
+		"timeZone": {
+			"type": "String",
+			"default": ""
+		},
+		"description":{
+			"type": "String",
+			"default": ""
+		},
+		"avatar": {
+			"type": "String",
+			"default": ""
+		}
+	},
+	"mixins": {
+		"TimeStamp" : true
+	},
+	"hidden": ["createdAt", "updatedAt"],
+	"validations": [],
+	"relations": {
+		"Balance": {
+			"type": "embedsOne",
+			"model": "Balance",
+			"property": "balance",
+			"default": {}
+		},
+		"Social": {
+			"type": "embedsOne",
+			"model": "Social",
+			"property": "social",
+			"default": {}
+		}
+	},
+	"acls": [],
+	"methods": {}
+}

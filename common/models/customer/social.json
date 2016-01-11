@@ -1,0 +1,26 @@
+{
+	"name": "Social",
+	"base": "PersistedModel",
+	"strict": true,
+	"options": {
+		"validateUpsert": true
+	},
+	"properties": {
+		"fb": {
+			"type": "String",
+			"default": ""
+		},
+		"tw": {
+			"type": "String",
+			"default": ""
+		},
+		"li": {
+			"type": "String",
+			"default": ""
+		}
+	},
+	"validations": [],
+	"relations": {},
+	"acls": [],
+	"methods": {}
+}

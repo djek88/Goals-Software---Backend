@@ -1,0 +1,44 @@
+{
+	"name": "Session",
+	"base": "PersistedModel",
+	"strict": true,
+	"options": {
+		"mongodb": {
+			"collection": "Sessions"
+		},
+		"validateUpsert": true
+	},
+	"properties": {
+		"_id": {
+			"type": "ObjectId",
+			"generated": true,
+			"id": true
+		},
+		"startAt": {
+			"type": "Date",
+			"required": true
+		},
+		"excuses": {
+			"type": "Object",
+			"default": {}
+		},
+		"state": {
+			"type": "String",
+			"default": ""
+		}
+	},
+	"mixins": {
+		"TimeStamp" : true
+	},
+	"hidden": ["createdAt", "updatedAt"],
+	"validations": [],
+	"relations": {
+		"Group": {
+			"type": "belongsTo",
+			"model": "Group",
+			"foreignKey": "groupId"
+		}
+	},
+	"acls": [],
+	"methods": {}
+}

@@ -1,0 +1,61 @@
+{
+	"_meta": {
+		"sources": [
+			"../common/models/customer",
+			"../common/models/group",
+			"../common/models/session",
+			"../common/models/goal"
+		],
+		"mixins": [
+			"../common/mixins"
+		]
+	},
+	"User": {
+		"dataSource": "db",
+		"public": false
+	},
+	"AccessToken": {
+		"dataSource": "db",
+		"public": false
+	},
+	"ACL": {
+		"dataSource": "db",
+		"public": false
+	},
+	"RoleMapping": {
+		"dataSource": "db",
+		"public": false
+	},
+	"Role": {
+		"dataSource": "db",
+		"public": false
+	},
+	"Customer": {
+		"dataSource": "db",
+		"public": true
+	},
+	"Group": {
+		"dataSource": "db",
+		"public": true
+	},
+	"Session": {
+		"dataSource": "db",
+		"public": true
+	},
+	"Goal": {
+		"dataSource": "db",
+		"public": true
+	},
+	"Social": {
+		"dataSource": "db",
+		"public": false
+	},
+	"Balance": {
+		"dataSource": "db",
+		"public": false
+	},
+	"SessionConf": {
+		"dataSource": "db",
+		"public": false
+	}
+}

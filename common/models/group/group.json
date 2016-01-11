@@ -1,0 +1,82 @@
+{
+	"name": "Group",
+	"base": "PersistedModel",
+	"strict": true,
+	"options": {
+		"mongodb": {
+			"collection": "Groups"
+		},
+		"validateUpsert": true
+	},
+	"properties": {
+		"_id": {
+			"type": "ObjectId",
+			"generated": true,
+			"id": true
+		},
+		"name": {
+			"type": "String",
+			"required": true
+		},
+		"description": {
+			"type": "String",
+			"default": ""
+		},
+		"type": {
+			"type": "Number",
+			"default": 5
+		},
+		"penalty": {
+			"type": "Number",
+			"default": 20
+		},
+		"private": {
+			"type": "Boolean",
+			"default": true
+		},
+		"maxMembers": {
+			"type": "Number",
+			"default": 1
+		}
+	},
+	"mixins": {
+		"TimeStamp" : true
+	},
+	"hidden": ["createdAt", "updatedAt"],
+	"validations": [],
+	"relations": {
+		"SessionConf": {
+			"type": "embedsOne",
+			"model": "SessionConf",
+			"property": "sessionConf",
+			"default": {},
+			"options": {
+				"validate": true,
+				"forceId": false
+			}
+		},
+		"Owner": {
+			"type": "belongsTo",
+			"model": "Customer",
+			"foreignKey": "ownerId"
+		},
+		"Members": {
+			"type": "referencesMany",
+			"model": "Customer",
+			"foreignKey": "memberIds",
+			"default": []
+		},
+		"NextSession": {
+			"type": "belongsTo",
+			"model": "Session",
+			"foreignKey": "nextSessionId"
+		},
+		"LastSession": {
+			"type": "belongsTo",
+			"model": "Session",
+			"foreignKey": "lastSessionId"
+		}
+	},
+	"acls": [],
+	"methods": {}
+}

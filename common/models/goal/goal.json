@@ -1,0 +1,66 @@
+{
+	"name": "Goal",
+	"base": "PersistedModel",
+	"strict": true,
+	"options": {
+		"mongodb": {
+			"collection": "Goals"
+		},
+		"validateUpsert": true
+	},
+	"properties": {
+		"_id": {
+			"type": "ObjectId",
+			"generated": true,
+			"id": true
+		},
+		"name": {
+			"type": "String",
+			"required": true
+		},
+		"description": {
+			"type": "String",
+			"required": true
+		},
+		"dueDate": {
+			"type": "Date",
+			"required": true
+		},
+		"state": {
+			"type": "Number",
+			"default": 1
+		},
+		"evidences": {
+			"type": ["String"],
+			"default": []
+		},
+		"comments": {
+			"type": ["Object"],
+			"default": []
+		}
+	},
+	"mixins": {
+		"TimeStamp": true
+	},
+	"hidden": ["createdAt", "updatedAt"],
+	"validations": [],
+	"relations": {
+		"Approvers": {
+			"type": "referencesMany",
+			"model": "Customer",
+			"foreignKey": "ApproverIds"
+		},
+		"Owner": {
+			"type": "belongsTo",
+			"model": "Customer",
+			"foreignKey": "ownerId"
+		},
+		"Group": {
+			"type": "belongsTo",
+			"model": "Group",
+			"foreignKey": "groupId"
+		}
+	},
+	"acls": [],
+	"methods": {}
+}

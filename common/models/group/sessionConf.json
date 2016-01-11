@@ -1,0 +1,29 @@
+{
+	"name": "SessionConf",
+	"base": "PersistedModel",
+	"options": {
+		"validateUpsert": true
+	},
+	"properties": {
+		"sheduled": {
+			"type": "Boolean",
+			"default": true
+		},
+		"date": {
+			"type": "Date",
+			"defaultFn": "now"
+		},
+		"frequency": {
+			"type": "Number",
+			"default": 1
+		},
+		"roudLength": {
+			"type": ["Number"],
+			"default": [120, 180, 90, 120]
+		}
+	},
+	"validations": [],
+	"relations": {},
+	"acls": [],
+	"methods": {}
+}
