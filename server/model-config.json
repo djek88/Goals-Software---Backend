@@ -4,7 +4,8 @@
 			"../common/models/customer",
 			"../common/models/group",
 			"../common/models/session",
-			"../common/models/goal"
+			"../common/models/goal",
+			"../common/models/container"
 		],
 		"mixins": [
 			"../common/mixins"
@@ -57,5 +58,9 @@
 	"SessionConf": {
 		"dataSource": "db",
 		"public": false
+	},
+	"Container": {
+		"dataSource": "storage",
+		"public": true
 	}
 }

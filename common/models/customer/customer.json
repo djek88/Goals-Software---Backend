@@ -26,17 +26,17 @@
 			"type": "String",
 			"default": ""
 		},
-		"description":{
+		"description": {
 			"type": "String",
 			"default": ""
 		},
 		"avatar": {
 			"type": "String",
-			"default": ""
+			"default": "/Containers/default-avatar/download/male.png"
 		}
 	},
 	"mixins": {
-		"TimeStamp" : true
+		"TimeStamp": true
 	},
 	"hidden": ["createdAt", "updatedAt"],
 	"validations": [],
@@ -54,6 +54,11 @@
 			"default": {}
 		}
 	},
-	"acls": [],
+	"acls": [{
+		"principalType": "ROLE",
+		"principalId": "$owner",
+		"permission": "ALLOW",
+		"property": "uploadAvatar"
+	}],
 	"methods": {}
 }

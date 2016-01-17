@@ -7,13 +7,16 @@
     "pretest": "jshint ."
   },
   "dependencies": {
+    "async": "^1.5.2",
     "bcrypt": "^0.8.5",
+    "body-parser": "^1.14.2",
     "compression": "^1.0.3",
     "cors": "^2.5.2",
     "debug": "^2.2.0",
     "loopback": "^2.22.0",
     "loopback-boot": "^2.6.5",
     "loopback-component-explorer": "^2.1.0",
+    "loopback-component-storage": "^1.6.1",
     "loopback-connector-mongodb": "^1.13.2",
     "loopback-datasource-juggler": "^2.39.0",
     "loopback-ds-timestamp-mixin": "^3.2.2",
