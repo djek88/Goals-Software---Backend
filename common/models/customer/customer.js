@@ -27,17 +27,20 @@ module.exports = function(Customer) {
 			{arg: 'req', type: 'object', 'http': {source: 'req'}},
 			{arg: 'res', type: 'object', 'http': {source: 'res'}}
 		],
-		returns: {arg: 'link', type: 'string'}
+		returns: {arg: 'customer', type: 'object'}
 	});
 
 	Customer.afterRemote('prototype.uploadAvatar', function(ctx, responce, next) {
 		var customer = ctx.instance;
-		var fileName = ctx.result.link.files.file[0].name;
+		var fileName = ctx.result.customer.files.file[0].name;
 		var filePath = '/Containers/' + customer._id + '/download/' + fileName;
 
-		responce.link = filePath;
-
 		customer.avatar = filePath;
-		customer.save(next);
+		customer.save(function(err, result) {
+			if (err) return next(err);
+
+			responce.customer = result;
+			next();
+		});
 	});
 };
