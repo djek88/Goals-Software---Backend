@@ -36,11 +36,28 @@ module.exports = function(Customer) {
 		var filePath = '/Containers/' + customer._id + '/download/' + fileName;
 
 		customer.avatar = filePath;
-		customer.save(function(err, result) {
+		customer.save({ skipPropertyFilter: true }, function(err, result) {
 			if (err) return next(err);
 
 			responce.customer = result;
 			next();
 		});
+	});
+
+	Customer.observe('before save', function removeAvatarField(ctx, next) {
+		if (ctx.options && ctx.options.skipPropertyFilter) return next();
+
+		if (ctx.isNewInstance) {
+			ctx.instance.avatar = '/Containers/default-avatar/download/male.png';
+			return next();
+		}
+
+		if (ctx.instance) {
+			ctx.instance.unsetAttribute('avatar');
+		} else {
+			delete ctx.data.avatar;
+		}
+
+		next();
 	});
 };

@@ -54,11 +54,13 @@
 			"default": {}
 		}
 	},
-	"acls": [{
-		"principalType": "ROLE",
-		"principalId": "$owner",
-		"permission": "ALLOW",
-		"property": "uploadAvatar"
-	}],
+	"acls": [
+		{
+			"principalType": "ROLE",
+			"principalId": "$owner",
+			"permission": "ALLOW",
+			"property": "uploadAvatar"
+		}
+	],
 	"methods": {}
 }
