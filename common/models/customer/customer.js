@@ -30,16 +30,15 @@ module.exports = function(Customer) {
 		returns: {arg: 'customer', type: 'object'}
 	});
 
-	Customer.afterRemote('prototype.uploadAvatar', function(ctx, responce, next) {
+	Customer.afterRemote('prototype.uploadAvatar', function(ctx, modelInstance, next) {
 		var customer = ctx.instance;
 		var fileName = ctx.result.customer.files.file[0].name;
-		var filePath = '/Containers/' + customer._id + '/download/' + fileName;
 
-		customer.avatar = filePath;
+		customer.avatar = '/Containers/' + customer._id + '/download/' + fileName;
 		customer.save({ skipPropertyFilter: true }, function(err, result) {
 			if (err) return next(err);
 
-			responce.customer = result;
+			ctx.result.customer = result;
 			next();
 		});
 	});

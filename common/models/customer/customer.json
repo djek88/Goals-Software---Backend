@@ -9,6 +9,14 @@
 		"validateUpsert": true
 	},
 	"properties": {
+		"username": false,
+		"realm": false,
+		"credentials": false,
+		"challenges": false,
+		"status": false,
+		"created": false,
+		"lastUpdated": false,
+
 		"_id": {
 			"type": "ObjectId",
 			"generated": true,
@@ -39,6 +47,7 @@
 		"TimeStamp": true
 	},
 	"hidden": ["createdAt", "updatedAt"],
+	"protected": ["email", "emailVerified", "verificationToken", "balance"],
 	"validations": [],
 	"relations": {
 		"Balance": {
@@ -56,10 +65,16 @@
 	},
 	"acls": [
 		{
+			"property": "uploadAvatar",
 			"principalType": "ROLE",
 			"principalId": "$owner",
-			"permission": "ALLOW",
-			"property": "uploadAvatar"
+			"permission": "ALLOW"
+		},
+		{
+			"property": "balance",
+			"principalType": "ROLE",
+			"principalId": "$owner",
+			"permission": "ALLOW"
 		}
 	],
 	"methods": {}
