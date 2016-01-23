@@ -48,19 +48,38 @@
 		"Approvers": {
 			"type": "referencesMany",
 			"model": "Customer",
-			"foreignKey": "ApproverIds"
+			"foreignKey": "_approverIds"
 		},
 		"Owner": {
 			"type": "belongsTo",
 			"model": "Customer",
-			"foreignKey": "ownerId"
+			"foreignKey": "_ownerId"
 		},
 		"Group": {
 			"type": "belongsTo",
 			"model": "Group",
-			"foreignKey": "groupId"
+			"foreignKey": "_groupId"
 		}
 	},
-	"acls": [],
+	"acls": [
+		{
+			"accessType": "*",
+			"principalType": "ROLE",
+			"principalId": "$everyone",
+			"permission": "DENY"
+		},
+		{
+			"accessType": "READ",
+			"principalType": "ROLE",
+			"principalId": "$authenticated",
+			"permission": "ALLOW"
+		},
+		{
+			"property": "create",
+			"principalType": "ROLE",
+			"principalId": "$authenticated",
+			"permission": "ALLOW"
+		}
+	],
 	"methods": {}
 }

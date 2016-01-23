@@ -54,24 +54,33 @@
 			"type": "embedsOne",
 			"model": "Balance",
 			"property": "balance",
-			"default": {}
+			"default": {},
+			"options": {
+				"validate": true,
+				"forceId": false
+			}
 		},
 		"Social": {
 			"type": "embedsOne",
 			"model": "Social",
 			"property": "social",
-			"default": {}
+			"default": {},
+			"options": {
+				"validate": true,
+				"forceId": false
+			}
 		}
 	},
 	"acls": [
 		{
-			"property": "uploadAvatar",
-			"principalType": "ROLE",
-			"principalId": "$owner",
-			"permission": "ALLOW"
-		},
-		{
-			"property": "balance",
+			"property": [
+				"exists",
+				"__get__Balance",
+				"__update__Balance",
+				"__get__Social",
+				"__update__Social",
+				"uploadAvatar"
+			],
 			"principalType": "ROLE",
 			"principalId": "$owner",
 			"permission": "ALLOW"

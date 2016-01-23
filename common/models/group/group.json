@@ -99,7 +99,6 @@
 		{
 			"property": [
 				"updateAttributes",
-				"upsert",
 				"deleteById",
 				"__link__Members",
 				"__unlink__Members",

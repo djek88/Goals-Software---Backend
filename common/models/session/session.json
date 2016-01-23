@@ -36,9 +36,16 @@
 		"Group": {
 			"type": "belongsTo",
 			"model": "Group",
-			"foreignKey": "groupId"
+			"foreignKey": "_groupId"
 		}
 	},
-	"acls": [],
+	"acls": [
+		{
+			"accessType": "*",
+			"principalType": "ROLE",
+			"principalId": "$everyone",
+			"permission": "DENY"
+		}
+	],
 	"methods": {}
 }

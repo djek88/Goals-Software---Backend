@@ -22,6 +22,7 @@ module.exports = function(Group) {
 	});
 
 	// Disable unnecessary methods
+	Group.disableRemoteMethod('upsert', true);
 	Group.disableRemoteMethod('__create__Members', false);
 	Group.disableRemoteMethod('__delete__Members', false);
 	Group.disableRemoteMethod('__updateById__Members', false);
@@ -30,14 +31,12 @@ module.exports = function(Group) {
 	Group.disableRemoteMethod('__destroy__SessionConf', false);
 
 	// Make sure _ownerId set properly
-	Group.beforeRemote('create', function(ctx, group, next) {
-		ctx.req.body._ownerId = ctx.req.accessToken.userId;
-		next();
-	});
+	Group.beforeRemote('create', setOwnerId);
+	Group.beforeRemote('prototype.updateAttributes', setOwnerId);
 
-	// Restrict returning private groups
-	Group.beforeRemote('findOne', changeQueryFilter);
-	Group.beforeRemote('find', changeQueryFilter);
+	// Exclude private groups where user don't owner or member
+	Group.afterRemote('findOne', deletePrivateGroups);
+	Group.afterRemote('find', deletePrivateGroups);
 
 	// Return private group only for owner and members
 	Group.beforeRemote('findById', checkIsGroupMember);
@@ -55,14 +54,29 @@ module.exports = function(Group) {
 	Group.afterRemote('prototype.__findById__Members', excludeFields);
 	Group.afterRemote('prototype.__get__Owner', excludeFields);
 
-	function changeQueryFilter(ctx, modelInstance, next) {
-		ctx.args.filter = ctx.args.filter || '{}';
-		var filter = JSON.parse(ctx.args.filter);
+	function setOwnerId(ctx, group, next) {
+		ctx.req.body._ownerId = ctx.req.accessToken.userId;
+		next();
+	}
 
-		filter.where = filter.where || {};
-		filter.where.private = false;
+	function deletePrivateGroups(ctx, modelInstance, next) {
+		var userId = ctx.req.accessToken.userId;
+		var groups = ctx.result;
 
-		ctx.args.filter = JSON.stringify(filter);
+		for (var i = 0; i < groups.length; i++) {
+			if (!groups[i].private) continue;
+
+			var isOwner = groups[i]._ownerId.toString() == userId;
+			var isMember = groups[i]._memberIds.some(function(id) {
+				return id.toString() == userId;
+			});
+
+			if (!isOwner && !isMember) {
+				groups.splice(i, 1);
+				i--;
+			}
+		}
+
 		next();
 	}
 
