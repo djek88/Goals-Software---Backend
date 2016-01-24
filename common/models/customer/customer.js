@@ -14,6 +14,7 @@ module.exports = function(Customer) {
 	Customer.disableRemoteMethod('__create__Social', false);
 	Customer.disableRemoteMethod('__destroy__Social', false);
 
+	// UploadAvatar request
 	Customer.prototype.uploadAvatar = function(req, res, next) {
 		var Container = Customer.app.models.Container;
 		var customerId = this._id.toString();
@@ -43,12 +44,16 @@ module.exports = function(Customer) {
 		returns: {arg: 'customer', type: 'object'}
 	});
 
+	// Update avatar field in model
 	Customer.afterRemote('prototype.uploadAvatar', setAvatarField);
+
 	// Restrict signup for now
 	Customer.beforeRemote('create', checkInvitationKey);
+
 	// Deny set manualy avatar field
 	Customer.beforeRemote('create', delAvatar);
 	Customer.beforeRemote('prototype.updateAttributes', delAvatar);
+
 
 	function setAvatarField(ctx, modelInstance, next) {
 		var customer = ctx.instance;
