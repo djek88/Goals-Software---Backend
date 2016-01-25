@@ -77,25 +77,25 @@ module.exports = function(Group) {
 	// Allow members to leave the group
 	Group.beforeRemote('prototype.__unlink__Members', allowMembersLeaveGroup); 
 
-	// Exclude private groups where user don't owner or member
-	Group.afterRemote('findOne', deletePrivateGroups);
-	Group.afterRemote('find', deletePrivateGroups);
+	// Exclude private group(s) where user don't owner or member
+	Group.afterRemote('find', excludePrivateGroups);
+	Group.afterRemote('findOne', excludePrivateGroups);
+	Group.afterRemote('findById', excludePrivateGroups);
 
 	// Return private group only for owner and members
-	Group.beforeRemote('findById', checkIsGroupMember);
 	Group.beforeRemote('exists', checkIsGroupMember);
 	Group.beforeRemote('prototype.__get__LastSession', checkIsGroupMember);
 	Group.beforeRemote('prototype.__get__NextSession', checkIsGroupMember);
+	Group.beforeRemote('prototype.__count__Members', checkIsGroupMember);
+	Group.beforeRemote('prototype.__get__SessionConf', checkIsGroupMember);
+	Group.beforeRemote('prototype.__get__Owner', checkIsGroupMember);
 	Group.beforeRemote('prototype.__get__Members', checkIsGroupMember);
 	Group.beforeRemote('prototype.__findById__Members', checkIsGroupMember);
-	Group.beforeRemote('prototype.__count__Members', checkIsGroupMember);
-	Group.beforeRemote('prototype.__get__Owner', checkIsGroupMember);
-	Group.beforeRemote('prototype.__get__SessionConf', checkIsGroupMember);
 
 	// Exclude protected fields from responce
+	Group.afterRemote('prototype.__get__Owner', excludeFields);
 	Group.afterRemote('prototype.__get__Members', excludeFields);
 	Group.afterRemote('prototype.__findById__Members', excludeFields);
-	Group.afterRemote('prototype.__get__Owner', excludeFields);
 
 
 	function setOwnerId(ctx, group, next) {
@@ -104,7 +104,7 @@ module.exports = function(Group) {
 	}
 
 	function excludeMemberIdsField(ctx, group, next) {
-		//delete ctx.req.body._memberIds;
+		delete ctx.req.body._memberIds;
 		next();
 	}
 
@@ -131,22 +131,26 @@ module.exports = function(Group) {
 		});
 	}
 
-	function deletePrivateGroups(ctx, modelInstance, next) {
+	function excludePrivateGroups(ctx, modelInstance, next) {
 		var userId = ctx.req.accessToken.userId;
-		var groups = ctx.result;
 
-		for (var i = 0; i < groups.length; i++) {
-			if (!groups[i].private) continue;
+		if (Array.isArray(ctx.result)) {
+			var groups = ctx.result;
 
-			var isOwner = groups[i]._ownerId.toString() == userId;
-			var isMember = groups[i]._memberIds.some(function(id) {
-				return id.toString() == userId;
-			});
+			for (var i = 0; i < groups.length; i++) {
+				if (!groups[i].private) continue;
 
-			if (!isOwner && !isMember) {
-				groups.splice(i, 1);
-				i--;
+				if (!isOwnerOrMember(userId, groups[i])) {
+					groups.splice(i, 1);
+					i--;
+				}
 			}
+		} else if(ctx.result.private && !isOwnerOrMember(userId, ctx.result)) {
+				var error = new Error();
+				error.statusCode = 401;
+				error.message = 'Authorization Required';
+				error.code = 'AUTHORIZATION_REQUIRED';
+				return next(error);
 		}
 
 		next();
@@ -156,24 +160,22 @@ module.exports = function(Group) {
 		var groupId = ctx.req.params.id;
 		var userId = ctx.req.accessToken.userId;
 
-		Group.findOne({
-			where: {
-				_id: groupId,
-				or: [{_ownerId: userId}, {_memberIds: userId}]
-			}
-		}, function(err, result) {
-			if (err || result) return next(err);
+		Group.findById(groupId, function(err, group) {
+			if (err) return next(err);
 
-			var error = new Error();
-			error.statusCode = 401;
-			error.message = 'Authorization Required';
-			error.code = 'AUTHORIZATION_REQUIRED';
-			next(error);
+			if (group.private && !isOwnerOrMember(userId, group)) {
+				var error = new Error();
+				error.statusCode = 401;
+				error.message = 'Authorization Required';
+				error.code = 'AUTHORIZATION_REQUIRED';
+				return next(error);
+			}
+
+			next();
 		});
 	}
 
 	function excludeFields(ctx, modelInstance, next) {
-		var WHITE_LIST_FIELDS = ['_id', 'firstName', 'lastName', 'timeZone', 'description', 'avatar', 'social'];
 		var resData = ctx.result;
 
 		if (resData) {
@@ -191,15 +193,25 @@ module.exports = function(Group) {
 		}
 
 		next();
+	}
 
-		function changeModelByWhiteList(resource) {
-			var destination = {};
+	function changeModelByWhiteList(resource) {
+		var WHITE_LIST_FIELDS = ['_id', 'firstName', 'lastName', 'timeZone', 'description', 'avatar', 'social'];
+		var destination = {};
 
-			WHITE_LIST_FIELDS.forEach(function(field) {
-				destination[field] = resource[field];
-			});
+		WHITE_LIST_FIELDS.forEach(function(field) {
+			destination[field] = resource[field];
+		});
 
-			return destination;
-		}
+		return destination;
+	}
+
+	function isOwnerOrMember(userId, group) {
+		var isOwner = group._ownerId.toString() == userId;
+		var isMember = group._memberIds.some(function(id) {
+			return id.toString() == userId;
+		});
+
+		return isOwner || isMember;
 	}
 };
