@@ -1,7 +1,7 @@
-module.exports = function(Goal) {
-	var GOALSTATES = [1, 2, 3, 4, 5, 6];
+var GOALSTATES = require('../additional/resources').goalStates;
 
-	Goal.validatesPresenceOf('ownerId', 'groupId');
+module.exports = function(Goal) {
+	Goal.validatesPresenceOf('_ownerId', '_groupId');
 	Goal.validatesInclusionOf('state', {in: GOALSTATES});
 	
 	Goal.validate('dueDate', function(err) {

@@ -37,12 +37,16 @@
 		"maxMembers": {
 			"type": "Number",
 			"default": 1
+		},
+		"memberCanInvite": {
+			"type": "Boolean",
+			"default": false
 		}
 	},
 	"mixins": {
 		"TimeStamp" : true
 	},
-	"hidden": ["createdAt", "updatedAt"],
+	"hidden": ["updatedAt"],
 	"validations": [],
 	"relations": {
 		"SessionConf": {

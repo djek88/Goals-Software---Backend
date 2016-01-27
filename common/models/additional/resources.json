@@ -1,0 +1,20 @@
+{
+	"goalStates": [1, 2, 3, 4, 5, 6],
+	"penaltyAmounts": [2, 5, 10, 15, 20, 30, 50, 75, 100, 200, 1000, 2500, 5000],
+	"sessionFrequencyTypes": {
+		"1": "Weekly",
+		"2": "First week",
+		"3": "Second week",
+		"4": "Third week",
+		"5": "Fourth week",
+		"6": "First and third week",
+		"7": "Second and fourth week"
+	},
+	"groupTypes": {
+		"1": "Business",
+		"2": "Investment",
+		"3": "Personal Development",
+		"4": "Health and Fithness",
+		"5": "Other"
+	}
+}

@@ -5,7 +5,8 @@
 			"../common/models/group",
 			"../common/models/session",
 			"../common/models/goal",
-			"../common/models/container"
+			"../common/models/container",
+			"../common/models/additional"
 		],
 		"mixins": [
 			"../common/mixins"
@@ -61,6 +62,10 @@
 	},
 	"Container": {
 		"dataSource": "storage",
+		"public": true
+	},
+	"Additional": {
+		"dataSource": "memory",
 		"public": true
 	}
 }

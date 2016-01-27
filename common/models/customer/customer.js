@@ -1,5 +1,3 @@
-var async = require('async');
-
 module.exports = function(Customer) {
 	Customer.disableRemoteMethod('upsert', true);
 	Customer.disableRemoteMethod('__get__accessTokens', false);
@@ -15,6 +13,17 @@ module.exports = function(Customer) {
 	Customer.disableRemoteMethod('__destroy__Social', false);
 
 	// UploadAvatar request
+	Customer.remoteMethod('uploadAvatar', {
+		isStatic: false,
+		description: 'Upload costomer img.',
+		http: {path: '/upload-avatar', verb: 'post'},
+		accepts: [
+			{arg: 'req', type: 'object', 'http': {source: 'req'}},
+			{arg: 'res', type: 'object', 'http': {source: 'res'}}
+		],
+		returns: {arg: 'customer', type: 'object'}
+	});
+
 	Customer.prototype.uploadAvatar = function(req, res, next) {
 		var Container = Customer.app.models.Container;
 		var customerId = this._id.toString();
@@ -32,17 +41,6 @@ module.exports = function(Customer) {
 			});
 		});
 	};
-
-	Customer.remoteMethod('uploadAvatar', {
-		isStatic: false,
-		description: 'Upload costomer img.',
-		http: {path: '/upload-avatar', verb: 'post'},
-		accepts: [
-			{arg: 'req', type: 'object', 'http': {source: 'req'}},
-			{arg: 'res', type: 'object', 'http': {source: 'res'}}
-		],
-		returns: {arg: 'customer', type: 'object'}
-	});
 
 	// Update avatar field in model
 	Customer.afterRemote('prototype.uploadAvatar', setAvatarField);

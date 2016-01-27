@@ -1,0 +1,10 @@
+{
+	"name": "Additional",
+	"base": "Model",
+	"options": {},
+	"properties": {},
+	"validations": [],
+	"relations": {},
+	"acls": [],
+	"methods": {}
+}

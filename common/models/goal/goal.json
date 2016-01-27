@@ -42,7 +42,7 @@
 	"mixins": {
 		"TimeStamp": true
 	},
-	"hidden": ["createdAt", "updatedAt"],
+	"hidden": ["updatedAt"],
 	"validations": [],
 	"relations": {
 		"Approvers": {

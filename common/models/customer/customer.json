@@ -46,7 +46,7 @@
 	"mixins": {
 		"TimeStamp": true
 	},
-	"hidden": ["createdAt", "updatedAt"],
+	"hidden": ["updatedAt"],
 	"protected": ["email", "emailVerified", "verificationToken", "balance"],
 	"validations": [],
 	"relations": {

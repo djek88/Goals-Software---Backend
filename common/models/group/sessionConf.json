@@ -13,7 +13,7 @@
 			"type": "Date",
 			"defaultFn": "now"
 		},
-		"frequency": {
+		"frequencyType": {
 			"type": "Number",
 			"default": 1
 		},
