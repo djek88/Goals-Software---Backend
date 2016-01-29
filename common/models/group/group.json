@@ -112,7 +112,11 @@
 			"permission": "ALLOW"
 		},
 		{
-			"property": "__unlink__Members",
+			"property": [
+				"__unlink__Members",
+				"sendEmailToGroup",
+				"sendEmailToMember"
+			],
 			"principalType": "ROLE",
 			"principalId": "$authenticated",
 			"permission": "ALLOW"

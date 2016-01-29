@@ -1,17 +1,4 @@
 module.exports = function(Customer) {
-	Customer.disableRemoteMethod('upsert', true);
-	Customer.disableRemoteMethod('__get__accessTokens', false);
-	Customer.disableRemoteMethod('__create__accessTokens', false);
-	Customer.disableRemoteMethod('__delete__accessTokens', false);
-	Customer.disableRemoteMethod('__findById__accessTokens', false);
-	Customer.disableRemoteMethod('__updateById__accessTokens', false);
-	Customer.disableRemoteMethod('__destroyById__accessTokens', false);
-	Customer.disableRemoteMethod('__count__accessTokens', false);
-	Customer.disableRemoteMethod('__create__Balance', false);
-	Customer.disableRemoteMethod('__destroy__Balance', false);
-	Customer.disableRemoteMethod('__create__Social', false);
-	Customer.disableRemoteMethod('__destroy__Social', false);
-
 	// UploadAvatar request
 	Customer.remoteMethod('uploadAvatar', {
 		isStatic: false,
@@ -21,7 +8,7 @@ module.exports = function(Customer) {
 			{arg: 'req', type: 'object', 'http': {source: 'req'}},
 			{arg: 'res', type: 'object', 'http': {source: 'res'}}
 		],
-		returns: {arg: 'customer', type: 'object'}
+		returns: {type: 'object', root: true}
 	});
 
 	Customer.prototype.uploadAvatar = function(req, res, next) {
@@ -42,26 +29,38 @@ module.exports = function(Customer) {
 		});
 	};
 
+
+	Customer.disableRemoteMethod('upsert', true);
+	Customer.disableRemoteMethod('__get__accessTokens', false);
+	Customer.disableRemoteMethod('__create__accessTokens', false);
+	Customer.disableRemoteMethod('__delete__accessTokens', false);
+	Customer.disableRemoteMethod('__findById__accessTokens', false);
+	Customer.disableRemoteMethod('__updateById__accessTokens', false);
+	Customer.disableRemoteMethod('__destroyById__accessTokens', false);
+	Customer.disableRemoteMethod('__count__accessTokens', false);
+	Customer.disableRemoteMethod('__create__Balance', false);
+	Customer.disableRemoteMethod('__destroy__Balance', false);
+	Customer.disableRemoteMethod('__create__Social', false);
+	Customer.disableRemoteMethod('__destroy__Social', false);
+
+
 	// Update avatar field in model
 	Customer.afterRemote('prototype.uploadAvatar', setAvatarField);
-
 	// Restrict signup for now
 	Customer.beforeRemote('create', checkInvitationKey);
-
 	// Deny set manualy avatar field
 	Customer.beforeRemote('create', delAvatar);
 	Customer.beforeRemote('prototype.updateAttributes', delAvatar);
 
-
 	function setAvatarField(ctx, modelInstance, next) {
 		var customer = ctx.instance;
-		var fileName = ctx.result.customer.files.file[0].name;
+		var fileName = ctx.result.files.file[0].name;
 
 		customer.avatar = '/Containers/' + customer._id + '/download/' + fileName;
 		customer.save(function(err, result) {
 			if (err) return next(err);
 
-			ctx.result.customer = result;
+			ctx.result = result;
 			next();
 		});
 	}
