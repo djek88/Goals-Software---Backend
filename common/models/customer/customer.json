@@ -32,7 +32,7 @@
 		},
 		"timeZone": {
 			"type": "String",
-			"default": ""
+			"default": "EST"
 		},
 		"description": {
 			"type": "String",

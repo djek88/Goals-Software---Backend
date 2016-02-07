@@ -1,4 +1,8 @@
+var moment = require('moment-timezone');
+
 module.exports = function(Customer) {
+	Customer.validatesInclusionOf('timeZone', {in: moment.tz.names()});
+
 	// UploadAvatar request
 	Customer.remoteMethod('uploadAvatar', {
 		isStatic: false,
@@ -46,6 +50,8 @@ module.exports = function(Customer) {
 
 	// Update avatar field in model
 	Customer.afterRemote('prototype.uploadAvatar', setAvatarField);
+	// Deny set manualy id field
+	Customer.beforeRemote('create', delId);
 	// Restrict signup for now
 	Customer.beforeRemote('create', checkInvitationKey);
 	// Deny set manualy avatar field
@@ -63,6 +69,11 @@ module.exports = function(Customer) {
 			ctx.result = result;
 			next();
 		});
+	}
+
+	function delId(ctx, customer, next) {
+		delete ctx.req.body._id;
+		next();
 	}
 
 	function checkInvitationKey(ctx, customer, next) {

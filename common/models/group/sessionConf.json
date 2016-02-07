@@ -9,9 +9,17 @@
 			"type": "Boolean",
 			"default": true
 		},
-		"date": {
-			"type": "Date",
-			"defaultFn": "now"
+		"day": {
+			"type": "Number",
+			"default": 0
+		},
+		"time": {
+			"type": "String",
+			"default": "0.00"
+		},
+		"timeZone": {
+			"type": "String",
+			"default": "EST"
 		},
 		"frequencyType": {
 			"type": "Number",

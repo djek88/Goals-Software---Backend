@@ -6,7 +6,7 @@ var smtpConfig = {
 	secure: true,
 	auth: {
 		user: 'mastermindservise@gmail.com',
-		pass: 'qwezxcasd'
+		pass: 'l3df6aL1Jlk375asdf7'
 	}
 };
 

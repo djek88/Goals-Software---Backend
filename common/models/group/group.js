@@ -156,15 +156,19 @@ module.exports = function(Group) {
 	Group.disableRemoteMethod('__create__SessionConf', false);
 	Group.disableRemoteMethod('__destroy__SessionConf', false);
 
-
+	// Deny set manualy id field
+	Group.beforeRemote('create', delId);
 	// Make sure _ownerId set properly
 	Group.beforeRemote('create', setOwnerId);
 	Group.beforeRemote('prototype.updateAttributes', setOwnerId);
 	// Deny add members to group during create or update group model
 	Group.beforeRemote('create', excludeMemberIdsField);
 	Group.beforeRemote('prototype.updateAttributes', excludeMemberIdsField);
+	// Validate roudLength field
+	Group.beforeRemote('create', validateRoudLengthField);
+	Group.beforeRemote('prototype.updateAttributes', validateRoudLengthField);
 	// Allow members to leave the group
-	Group.beforeRemote('prototype.__unlink__Members', allowMembersLeaveGroup); 
+	Group.beforeRemote('prototype.__unlink__Members', allowMembersLeaveGroup);
 	// Exclude private group(s) where user don't owner or member
 	Group.afterRemote('find', excludePrivateGroups);
 	Group.afterRemote('findOne', excludePrivateGroups);
@@ -183,6 +187,10 @@ module.exports = function(Group) {
 	Group.afterRemote('prototype.__get__Members', excludeFields);
 	Group.afterRemote('prototype.__findById__Members', excludeFields);
 
+	function delId(ctx, group, next) {
+		delete ctx.req.body._id;
+		next();
+	}
 
 	function setOwnerId(ctx, group, next) {
 		ctx.req.body._ownerId = ctx.req.accessToken.userId;
@@ -191,6 +199,22 @@ module.exports = function(Group) {
 
 	function excludeMemberIdsField(ctx, group, next) {
 		delete ctx.req.body._memberIds;
+		next();
+	}
+
+	function validateRoudLengthField(ctx, group, next) {
+		var roudLength = ctx.req.body.sessionConf.roudLength;
+
+		if (!Array.isArray(roudLength)) return next();
+
+		var minLengthRound = 0;
+
+		var round1 = roudLength[0] >= minLengthRound ? Number(roudLength[0]) : minLengthRound;
+		var round2PartA = roudLength[1] >= minLengthRound ? Number(roudLength[1]) : minLengthRound;
+		var round2PartB = roudLength[2] >= minLengthRound ? Number(roudLength[2]) : minLengthRound;
+		var round3 = roudLength[3] >= minLengthRound ? Number(roudLength[3]) : minLengthRound;
+
+		ctx.req.body.sessionConf.roudLength = [round1, round2PartA, round2PartB, round3];
 		next();
 	}
 
