@@ -18,7 +18,14 @@ module.exports = function(Group) {
 	Group.validatesInclusionOf('penalty', {in: PENALTYAMOUNTS});
 	Group.validate('maxMembers', function(err) { if (this.maxMembers < 1) err(); });
 
-
+	// Get base group info for any users
+	Group.remoteMethod('getBaseGroupInfo', {
+		isStatic: false,
+		description: 'Get base group info for non authenticated users',
+		http: {path: '/get-base-info', verb: 'post'},
+		accepts: [],
+		returns: {type: 'object', root: true}
+	});
 	// Change group owner request
 	Group.remoteMethod('changeGroupOwner', {
 		isStatic: false,
@@ -47,6 +54,17 @@ module.exports = function(Group) {
 			{arg: 'req', type: 'object', 'http': {source: 'req'}},
 			{arg: 'message', type: 'string', description: 'Message', required: true},
 			{arg: 'memberId', type: 'string', description: 'Receiver id', required: true}
+		]
+	});
+	// Invite new members
+	Group.remoteMethod('inviteNewMembers', {
+		isStatic: false,
+		description: 'Invite new members to the group.',
+		http: {path: '/invite-new-members', verb: 'post'},
+		accepts: [
+			{arg: 'req', type: 'object', 'http': {source: 'req'}},
+			{arg: 'emails', type: 'string', description: 'Email addresses. Separate each address with a ";"', required: true},
+			{arg: 'request', type: 'string', description: 'Invite request', required: true}
 		]
 	});
 
@@ -80,7 +98,9 @@ module.exports = function(Group) {
 		var senderId = req.accessToken.userId;
 		var group = this;
 
-		if (!message || !isOwnerOrMember(senderId, group)) return throwAuthError(next);
+		if (!message ||
+			!isOwnerOrMember(senderId, group) ||
+			!group._memberIds.length) return throwAuthError(next);
 
 		var memberIds = group._memberIds.concat(group._ownerId);
 
@@ -142,6 +162,38 @@ module.exports = function(Group) {
 			});
 
 			mailer.sendMail(mailOptions, next);
+		});
+	};
+
+	Group.prototype.inviteNewMembers = function(req, emails, request, next) {
+		var senderId = req.accessToken.userId.toString();
+		var group = this;
+
+		emails = prepareEmails(emails);
+		var haveFreeSpace = currentNumberMembers(group) < group.maxMembers;
+
+		if (!emails || !request || !isOwnerOrMember(senderId, group)
+			|| (group._ownerId != senderId && !group.memberCanInvite)
+			|| !haveFreeSpace) {
+			return throwAuthError(next);
+		}
+
+		mailer.sendMail({
+			from: 'Mastermind',
+			to: emails,
+			subject: 'Invitation to join a group.',
+			text: request
+		}, next);
+	};
+
+	Group.prototype.getBaseGroupInfo = function(next) {
+		next(null, {
+			_id: this._id,
+			name: this.name,
+			description: this.description,
+			penalty: this.penalty,
+			createdAt: this.createdAt,
+			sessionConf: this.sessionConf
 		});
 	};
 
@@ -318,5 +370,23 @@ module.exports = function(Group) {
 		error.statusCode = 401;
 		error.code = 'AUTHORIZATION_REQUIRED';
 		next(error);
+	}
+
+	function currentNumberMembers(group) {
+		return group._memberIds.length + 1;
+	}
+
+	function prepareEmails(emails) {
+		// trim spaces
+		emails = emails.split(';').map(function(email) {
+			return email.replace(/^\s+/, '').replace(/\s+$/, '');
+		});
+		// remove invalid emails
+		var re = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+		emails = emails.filter(function(email) {
+			return re.test(email);
+		});
+
+		return emails.join(', ');
 	}
 };

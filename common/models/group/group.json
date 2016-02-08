@@ -115,10 +115,17 @@
 			"property": [
 				"__unlink__Members",
 				"sendEmailToGroup",
-				"sendEmailToMember"
+				"sendEmailToMember",
+				"inviteNewMembers"
 			],
 			"principalType": "ROLE",
 			"principalId": "$authenticated",
+			"permission": "ALLOW"
+		},
+		{
+			"property": "getBaseGroupInfo",
+			"principalType": "ROLE",
+			"principalId": "$everyone",
 			"permission": "ALLOW"
 		}
 	],
