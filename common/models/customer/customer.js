@@ -52,6 +52,7 @@ module.exports = function(Customer) {
 	Customer.afterRemote('prototype.uploadAvatar', setAvatarField);
 	// Deny set manualy id field
 	Customer.beforeRemote('create', delId);
+	Customer.beforeRemote('prototype.updateAttributes', delId);
 	// Restrict signup for now
 	Customer.beforeRemote('create', checkInvitationKey);
 	// Deny set manualy avatar field

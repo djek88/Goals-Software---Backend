@@ -5,6 +5,7 @@
 			"../common/models/group",
 			"../common/models/session",
 			"../common/models/goal",
+			"../common/models/joinRequest",
 			"../common/models/container",
 			"../common/models/additional"
 		],
@@ -47,6 +48,10 @@
 	"Goal": {
 		"dataSource": "db",
 		"public": true
+	},
+	"JoinRequest": {
+		"dataSource": "db",
+		"public": false
 	},
 	"Social": {
 		"dataSource": "db",

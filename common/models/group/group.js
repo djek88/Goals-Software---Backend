@@ -1,4 +1,5 @@
 var loopback = require('loopback');
+var async = require('async');
 var mailer = require('../../../server/lib/mailer');
 var resources = require('../additional/resources');
 var PENALTYAMOUNTS = resources.penaltyAmounts;
@@ -9,23 +10,25 @@ authorizationError.statusCode = 401;
 authorizationError.code = 'AUTHORIZATION_REQUIRED';
 
 module.exports = function(Group) {
-	var groupTypeWhiteList = Object.keys(GROUPTYPES).map(function (item) {
+	var groupTypesWhiteList = Object.keys(GROUPTYPES).map(function (item) {
 		return Number(item);
 	});
 
 	Group.validatesPresenceOf('_ownerId');
-	Group.validatesInclusionOf('type', {in: groupTypeWhiteList});
+	Group.validatesInclusionOf('type', {in: groupTypesWhiteList});
 	Group.validatesInclusionOf('penalty', {in: PENALTYAMOUNTS});
 	Group.validate('maxMembers', function(err) { if (this.maxMembers < 1) err(); });
 
-	// Get base group info for any users
-	Group.remoteMethod('getBaseGroupInfo', {
-		isStatic: false,
-		description: 'Get base group info for non authenticated users',
-		http: {path: '/get-base-info', verb: 'post'},
-		accepts: [],
-		returns: {type: 'object', root: true}
-	});
+	// Disable unnecessary methods
+	Group.disableRemoteMethod('upsert', true);
+	Group.disableRemoteMethod('__create__Members', false);
+	Group.disableRemoteMethod('__delete__Members', false);
+	Group.disableRemoteMethod('__updateById__Members', false);
+	Group.disableRemoteMethod('__destroyById__Members', false);
+	Group.disableRemoteMethod('__link__Members', false);
+	Group.disableRemoteMethod('__create__SessionConf', false);
+	Group.disableRemoteMethod('__destroy__SessionConf', false);
+
 	// Change group owner request
 	Group.remoteMethod('changeGroupOwner', {
 		isStatic: false,
@@ -66,6 +69,24 @@ module.exports = function(Group) {
 			{arg: 'emails', type: 'string', description: 'Email addresses. Separate each address with a ";"', required: true},
 			{arg: 'request', type: 'string', description: 'Invite request', required: true}
 		]
+	});
+	// Request to join the group
+	Group.remoteMethod('requestToJoin', {
+		isStatic: false,
+		description: 'Request to join the group.',
+		http: {path: '/request-to-join', verb: 'post'},
+		accepts: [
+			{arg: 'req', type: 'object', 'http': {source: 'req'}},
+			{arg: 'request', type: 'string', description: 'Message to group owner requesting permission to join.', required: true}
+		]
+	});
+	// Get base group info for any users
+	Group.remoteMethod('getBaseGroupInfo', {
+		isStatic: false,
+		description: 'Get base group info for non authenticated users',
+		http: {path: '/get-base-info', verb: 'post'},
+		accepts: [],
+		returns: {type: 'object', root: true}
 	});
 
 	Group.prototype.changeGroupOwner = function(ownerId, next) {
@@ -186,6 +207,45 @@ module.exports = function(Group) {
 		}, next);
 	};
 
+	Group.prototype.requestToJoin = function(req, request, next) {
+		var JoinRequest = Group.app.models.JoinRequest;
+		var Customer = Group.app.models.Customer;
+		var senderId = req.accessToken.userId.toString();
+		var group = this;
+
+		if (!request || isOwnerOrMember(senderId, group)) {
+			return throwAuthError(next);
+		}
+
+		async.waterfall([
+			function(cb) {
+				JoinRequest.findOrCreate({
+					_ownerId: senderId,
+					_groupId: group._id,
+					closed: false
+				}, {
+					request: request,
+					_ownerId: senderId,
+					_groupId: group._id
+				}, function(err, result, created) {
+					if (err) return cb(err);
+					// if find another active request
+					if (!created) return cb(authorizationError);
+					cb();
+				});
+			},
+			Customer.findById.bind(Customer, group._ownerId),
+			function(customer, cb) {
+				mailer.sendMail({
+					from: 'Mastermind',
+					to: customer.email,
+					subject: 'Request to join a group.',
+					text: request
+				}, cb);
+			}
+		], next);
+	};
+
 	Group.prototype.getBaseGroupInfo = function(next) {
 		next(null, {
 			_id: this._id,
@@ -198,18 +258,9 @@ module.exports = function(Group) {
 	};
 
 
-	// Disable unnecessary methods
-	Group.disableRemoteMethod('upsert', true);
-	Group.disableRemoteMethod('__create__Members', false);
-	Group.disableRemoteMethod('__delete__Members', false);
-	Group.disableRemoteMethod('__updateById__Members', false);
-	Group.disableRemoteMethod('__destroyById__Members', false);
-	Group.disableRemoteMethod('__link__Members', false);
-	Group.disableRemoteMethod('__create__SessionConf', false);
-	Group.disableRemoteMethod('__destroy__SessionConf', false);
-
 	// Deny set manualy id field
 	Group.beforeRemote('create', delId);
+	Group.beforeRemote('prototype.updateAttributes', delId);
 	// Make sure _ownerId set properly
 	Group.beforeRemote('create', setOwnerId);
 	Group.beforeRemote('prototype.updateAttributes', setOwnerId);
