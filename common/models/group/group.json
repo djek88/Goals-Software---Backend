@@ -102,10 +102,21 @@
 		},
 		{
 			"property": [
+				"activeJoinRequests"
+			],
+			"principalType": "ROLE",
+			"principalId": "$everyone",
+			"permission": "DENY"
+		},
+		{
+			"property": [
 				"updateAttributes",
 				"deleteById",
 				"__update__SessionConf",
-				"changeGroupOwner"
+				"changeGroupOwner",
+				"activeJoinRequests",
+				"approveRequest",
+				"rejectRequest"
 			],
 			"principalType": "ROLE",
 			"principalId": "$owner",
@@ -124,7 +135,7 @@
 			"permission": "ALLOW"
 		},
 		{
-			"property": "getBaseGroupInfo",
+			"property": "baseGroupInfo",
 			"principalType": "ROLE",
 			"principalId": "$everyone",
 			"permission": "ALLOW"

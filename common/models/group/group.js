@@ -81,12 +81,38 @@ module.exports = function(Group) {
 		]
 	});
 	// Get base group info for any users
-	Group.remoteMethod('getBaseGroupInfo', {
+	Group.remoteMethod('baseGroupInfo', {
 		isStatic: false,
-		description: 'Get base group info for non authenticated users',
-		http: {path: '/get-base-info', verb: 'post'},
-		accepts: [],
+		description: 'Get base group info for non authenticated users.',
+		http: {path: '/base-info', verb: 'get'},
 		returns: {type: 'object', root: true}
+	});
+	// Get active requests to join the group
+	Group.remoteMethod('activeJoinRequests', {
+		isStatic: false,
+		description: 'Get active requests to join the group.',
+		http: {path: '/active-join-requests', verb: 'get'},
+		returns: {type: 'array', root: true}
+	});
+	// Approve request to join the group
+	Group.remoteMethod('approveRequest', {
+		isStatic: false,
+		description: 'Approve request to join the group.',
+		http: {path: '/approve-request/:requestId', verb: 'post'},
+		accepts: [
+			{arg: 'req', type: 'object', 'http': {source: 'req'}},
+			{arg: 'requestId', type: 'string', description: 'Request id', required: true}
+		]
+	});
+	// Reject request to join the group
+	Group.remoteMethod('rejectRequest', {
+		isStatic: false,
+		description: 'Reject request to join the group.',
+		http: {path: '/reject-request/:requestId', verb: 'post'},
+		accepts: [
+			{arg: 'req', type: 'object', 'http': {source: 'req'}},
+			{arg: 'requestId', type: 'string', description: 'Request id', required: true}
+		]
 	});
 
 	Group.prototype.changeGroupOwner = function(ownerId, next) {
@@ -220,9 +246,11 @@ module.exports = function(Group) {
 		async.waterfall([
 			function(cb) {
 				JoinRequest.findOrCreate({
-					_ownerId: senderId,
-					_groupId: group._id,
-					closed: false
+					where: {
+						_ownerId: senderId,
+						_groupId: group._id,
+						closed: false
+					}
 				}, {
 					request: request,
 					_ownerId: senderId,
@@ -239,14 +267,14 @@ module.exports = function(Group) {
 				mailer.sendMail({
 					from: 'Mastermind',
 					to: customer.email,
-					subject: 'Request to join a group.',
+					subject: 'Request to join the group.',
 					text: request
 				}, cb);
 			}
 		], next);
 	};
 
-	Group.prototype.getBaseGroupInfo = function(next) {
+	Group.prototype.baseGroupInfo = function(next) {
 		next(null, {
 			_id: this._id,
 			name: this.name,
@@ -255,6 +283,116 @@ module.exports = function(Group) {
 			createdAt: this.createdAt,
 			sessionConf: this.sessionConf
 		});
+	};
+
+	Group.prototype.activeJoinRequests = function(next) {
+		Group.app.models.JoinRequest.find({
+			where: {
+				closed: false,
+				_groupId: this._id
+			}
+		}, next);
+	};
+
+	Group.prototype.approveRequest = function(req, requestId, next) {
+		var JoinRequest = Group.app.models.JoinRequest;
+		var Customer = Group.app.models.Customer;
+		var group = this;
+		var haveFreeSpace = currentNumberMembers(group) < group.maxMembers;
+
+		if (!haveFreeSpace) return throwAuthError(next);
+
+		async.waterfall([
+			// Find request
+			function(cb) {
+				JoinRequest.findOne({
+					where: {
+						_id: requestId,
+						_groupId: group._id,
+						closed: false
+					}
+				}, cb);
+			},
+			// Find request owner
+			function(request, cb) {
+				if (!request) return cb(authorizationError);
+
+				Customer.findById(request._ownerId, function(err, customer) {
+					if (err) return cb(err);
+					if (!customer) return cb(authorizationError);
+
+					cb(null, request, customer);
+				});
+			},
+			// Update models and notify request owner
+			function(request, customer, cb) {
+				async.series([
+					function(callback) {
+						request.approved = true;
+						request.closed = true;
+						request.save(callback);
+					},
+					function(callback) {
+						group._memberIds.push(customer._id);
+						group.save(callback);
+					},
+					function(callback) {
+						mailer.sendMail({
+							from: 'Mastermind',
+							to: customer.email,
+							subject: 'Your request to join the group.',
+							text: 'You request to join ' + group.name + ' group was accepted.\n\nThanks'
+						}, callback);
+					}
+				], cb);
+			}
+		], next);
+	};
+
+	Group.prototype.rejectRequest = function(req, requestId, next) {
+		var JoinRequest = Group.app.models.JoinRequest;
+		var Customer = Group.app.models.Customer;
+		var group = this;
+
+		async.waterfall([
+			// Find request
+			function(cb) {
+				JoinRequest.findOne({
+					where: {
+						_id: requestId,
+						_groupId: group._id,
+						closed: false
+					}
+				}, cb);
+			},
+			// Find request owner
+			function(request, cb) {
+				if (!request) return cb(authorizationError);
+
+				Customer.findById(request._ownerId, function(err, customer) {
+					if (err) return cb(err);
+					if (!customer) return cb(authorizationError);
+
+					cb(null, request, customer);
+				});
+			},
+			// Update request model and notify request owner
+			function(request, customer, cb) {
+				request.approved = false;
+				request.closed = true;
+
+				request.save(function(err) {
+					if (err) return cb(err);
+
+					mailer.sendMail({
+						from: 'Mastermind',
+						to: customer.email,
+						subject: 'Your request to join the group.',
+						text: 'You request to join ' + group.name + ' group was rejected.\n\nThanks'
+					}, cb);
+				});
+			}
+		], next);
 	};
 
 
