@@ -395,7 +395,6 @@ module.exports = function(Group) {
 		], next);
 	};
 
-
 	// Deny set manualy id field
 	Group.beforeRemote('create', delId);
 	Group.beforeRemote('prototype.updateAttributes', delId);
@@ -408,6 +407,8 @@ module.exports = function(Group) {
 	// Validate roudLength field
 	Group.beforeRemote('create', validateRoudLengthField);
 	Group.beforeRemote('prototype.updateAttributes', validateRoudLengthField);
+	// Validate maxMembers field
+	Group.beforeRemote('prototype.updateAttributes', validateMaxMembersField);
 	// Allow members to leave the group
 	Group.beforeRemote('prototype.__unlink__Members', allowMembersLeaveGroup);
 	// Exclude private group(s) where user don't owner or member
@@ -444,7 +445,8 @@ module.exports = function(Group) {
 	}
 
 	function validateRoudLengthField(ctx, group, next) {
-		var roudLength = ctx.req.body.sessionConf.roudLength;
+		var sessionConf = ctx.req.body.sessionConf || {};
+		var roudLength = sessionConf.roudLength;
 
 		if (!Array.isArray(roudLength)) return next();
 
@@ -456,6 +458,15 @@ module.exports = function(Group) {
 		var round3 = roudLength[3] >= minLengthRound ? Number(roudLength[3]) : minLengthRound;
 
 		ctx.req.body.sessionConf.roudLength = [round1, round2PartA, round2PartB, round3];
+		next();
+	}
+
+	function validateMaxMembersField(ctx, group, next) {
+		if (ctx.req.body.maxMembers &&
+			ctx.req.body.maxMembers < currentNumberMembers(ctx.instance)) {
+			return throwAuthError(next);
+		}
+
 		next();
 	}
 

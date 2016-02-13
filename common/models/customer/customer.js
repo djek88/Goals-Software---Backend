@@ -3,6 +3,20 @@ var moment = require('moment-timezone');
 module.exports = function(Customer) {
 	Customer.validatesInclusionOf('timeZone', {in: moment.tz.names()});
 
+	// Disable unnecessary methods
+	Customer.disableRemoteMethod('upsert', true);
+	Customer.disableRemoteMethod('__get__accessTokens', false);
+	Customer.disableRemoteMethod('__create__accessTokens', false);
+	Customer.disableRemoteMethod('__delete__accessTokens', false);
+	Customer.disableRemoteMethod('__findById__accessTokens', false);
+	Customer.disableRemoteMethod('__updateById__accessTokens', false);
+	Customer.disableRemoteMethod('__destroyById__accessTokens', false);
+	Customer.disableRemoteMethod('__count__accessTokens', false);
+	Customer.disableRemoteMethod('__create__Balance', false);
+	Customer.disableRemoteMethod('__destroy__Balance', false);
+	Customer.disableRemoteMethod('__create__Social', false);
+	Customer.disableRemoteMethod('__destroy__Social', false);
+
 	// UploadAvatar request
 	Customer.remoteMethod('uploadAvatar', {
 		isStatic: false,
@@ -12,6 +26,13 @@ module.exports = function(Customer) {
 			{arg: 'req', type: 'object', 'http': {source: 'req'}},
 			{arg: 'res', type: 'object', 'http': {source: 'res'}}
 		],
+		returns: {type: 'object', root: true}
+	});
+	// Get base customer info
+	Customer.remoteMethod('baseCustomerInfo', {
+		isStatic: false,
+		description: 'Get base customer info.',
+		http: {path: '/base-info', verb: 'get'},
 		returns: {type: 'object', root: true}
 	});
 
@@ -33,20 +54,16 @@ module.exports = function(Customer) {
 		});
 	};
 
-
-	Customer.disableRemoteMethod('upsert', true);
-	Customer.disableRemoteMethod('__get__accessTokens', false);
-	Customer.disableRemoteMethod('__create__accessTokens', false);
-	Customer.disableRemoteMethod('__delete__accessTokens', false);
-	Customer.disableRemoteMethod('__findById__accessTokens', false);
-	Customer.disableRemoteMethod('__updateById__accessTokens', false);
-	Customer.disableRemoteMethod('__destroyById__accessTokens', false);
-	Customer.disableRemoteMethod('__count__accessTokens', false);
-	Customer.disableRemoteMethod('__create__Balance', false);
-	Customer.disableRemoteMethod('__destroy__Balance', false);
-	Customer.disableRemoteMethod('__create__Social', false);
-	Customer.disableRemoteMethod('__destroy__Social', false);
-
+	Customer.prototype.baseCustomerInfo = function(next) {
+		next(null, {
+			_id: this._id,
+			firstName: this.firstName,
+			lastName: this.lastName,
+			description: this.description,
+			avatar: this.avatar,
+			social: this.social
+		});
+	};
 
 	// Update avatar field in model
 	Customer.afterRemote('prototype.uploadAvatar', setAvatarField);

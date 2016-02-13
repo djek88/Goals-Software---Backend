@@ -84,7 +84,14 @@
 			"principalType": "ROLE",
 			"principalId": "$owner",
 			"permission": "ALLOW"
+		},
+		{
+			"property": "baseCustomerInfo",
+			"principalType": "ROLE",
+			"principalId": "$authenticated",
+			"permission": "ALLOW"
 		}
+
 	],
 	"methods": {}
 }
