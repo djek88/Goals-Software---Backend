@@ -1,4 +1,5 @@
 var moment = require('moment-timezone');
+var ApiError = require('../../../server/lib/error/Api-error');
 
 module.exports = function(Customer) {
 	Customer.validatesInclusionOf('timeZone', {in: moment.tz.names()});
@@ -96,11 +97,7 @@ module.exports = function(Customer) {
 
 	function checkInvitationKey(ctx, customer, next) {
 		if (ctx.req.body.invitationKey !== 'mastermindSecretKey') {
-			var error = new Error();
-			error.statusCode = 401;
-			error.message = 'Authorization Required';
-			error.code = 'AUTHORIZATION_REQUIRED';
-			return next(error);
+			return next(ApiError.incorrectParam('invitationKey'));
 		}
 
 		delete ctx.req.body.invitationKey;

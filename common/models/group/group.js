@@ -1,13 +1,10 @@
 var loopback = require('loopback');
 var async = require('async');
+var ApiError = require('../../../server/lib/error/Api-error');
 var mailer = require('../../../server/lib/mailer');
 var resources = require('../additional/resources');
 var PENALTYAMOUNTS = resources.penaltyAmounts;
 var GROUPTYPES = resources.groupTypes;
-
-var authorizationError = new Error('Authorization Required');
-authorizationError.statusCode = 401;
-authorizationError.code = 'AUTHORIZATION_REQUIRED';
 
 module.exports = function(Group) {
 	var groupTypesWhiteList = Object.keys(GROUPTYPES).map(function (item) {
@@ -116,65 +113,66 @@ module.exports = function(Group) {
 	});
 
 	Group.prototype.changeGroupOwner = function(ownerId, next) {
+		var Customer = Group.app.models.Customer;
 		var group = this;
-		var newOwnerId = ownerId;
-		var invalidOwnerId = true;
 
 		for (var i = group._memberIds.length - 1; i >= 0; i--) {
 			var id = group._memberIds[i].toString();
 
-			if (id === newOwnerId) {
-				invalidOwnerId = false;
-
+			if (id === ownerId) {
 				group._memberIds.splice(i, 1);
 				group._ownerId = id;
-				group.save(next);
-				break;
+				return group.save(function(err, freshGroup) {
+					if (err) return next(err);
+
+					next();
+
+					// Notify new owner and group members
+					Customer.findById(freshGroup._ownerId, function(err, newOwner) {
+						if (err || !newOwner) return;
+
+						mailer.notifyByEmail(
+							newOwner.email,
+							'Change group owner',
+							'You are the new owner of the group "' + freshGroup.name + '"'
+						);
+
+						mailer.notifyById(
+							freshGroup._memberIds,
+							'Change group owner',
+							'The owner of the "' + freshGroup.name + '" group changed to ' + newOwner.firstName + ' ' + owner.lastName
+						);
+					});
+				});
 			}
 		}
 
-		if (invalidOwnerId) {
-			var error = new Error();
-			error.statusCode = 404;
-			error.message = 'No instance with id ' + ownerId + ' found in memberIds';
-			next(error);
-		}
+		next(ApiError.incorrectParam('ownerId'));
 	};
 
 	Group.prototype.sendEmailToGroup = function(req, message, next) {
-		var senderId = req.accessToken.userId;
+		var senderId = req.accessToken.userId.toString();
 		var group = this;
 
-		if (!message ||
-			!isOwnerOrMember(senderId, group) ||
-			!group._memberIds.length) return throwAuthError(next);
+		if (!isOwnerOrMember(senderId, group)) return next(new ApiError(403));
+		if (!message) return next(ApiError.incorrectParam('message'));
+		if (!group._memberIds.length) return next(new ApiError(404, 'Members Not found'));
 
-		var memberIds = group._memberIds.concat(group._ownerId);
-
-		Group.app.models.Customer.find({
-			where: {_id: {inq: memberIds}}
-		}, function(err, members) {
+		Group.app.models.Customer.findById(senderId, function(err, sender) {
 			if (err) return next(err);
 
-			var senderName;
-			var recipients = [];
+			var recipients = group._memberIds
+				.concat(group._ownerId)
+				.filter(function(id) {
+					return id.toString() !== senderId;
+				});
 
-			members.forEach(function(member) {
-				if (member._id.toString() == senderId) {
-					senderName = member.firstName + ' ' + member.lastName;
-				} else {
-					recipients.push(member.email);
-				}
-			});
-
-			var mailOptions = {
-				from: 'Mastermind',
-				to: recipients.join(', '),
-				subject: 'Message from ' + senderName,
-				text: message
-			};
-
-			mailer.sendMail(mailOptions, next);
+			mailer.notifyById(
+				recipients,
+				'Message from ' + sender.firstName + ' ' + sender.lastName,
+				message,
+				next
+			);
 		});
 	};
 
@@ -182,33 +180,36 @@ module.exports = function(Group) {
 		var senderId = req.accessToken.userId.toString();
 		var group = this;
 
-		if (!message || senderId === memberId
-			|| !isOwnerOrMember(senderId, group)
-			|| !isOwnerOrMember(memberId, group)) return throwAuthError(next);
+		if (!isOwnerOrMember(senderId, group)) return next(new ApiError(403));
+		if (!message) return next(ApiError.incorrectParam('message'));
+		if (!isOwnerOrMember(memberId, group) || senderId === memberId) {
+			return next(ApiError.incorrectParam('memberId'));
+		}
 
 		Group.app.models.Customer.find({
 			where: {_id: {inq: [senderId, memberId]}}
 		}, function(err, members) {
 			if (err) return next(err);
 
-			var mailOptions = {
-				from: 'Mastermind',
-				to: '',
-				subject: 'Message from ',
-				text: message
-			};
+			var senderName = '';
+			var recipientEmail = '';
 
 			members.forEach(function(member) {
 				var mId = member._id.toString();
 
 				if (mId === senderId) {
-					mailOptions.subject += member.firstName + ' ' + member.lastName;
+					senderName = member.firstName + ' ' + member.lastName;
 				} else if (mId === memberId) {
-					mailOptions.to += member.email;
+					recipientEmail = member.email;
 				}
 			});
 
-			mailer.sendMail(mailOptions, next);
+			mailer.notifyByEmail(
+				recipientEmail,
+				'Message from ' + senderName,
+				message,
+				next
+			);
 		});
 	};
 
@@ -217,20 +218,20 @@ module.exports = function(Group) {
 		var group = this;
 
 		emails = prepareEmails(emails);
-		var haveFreeSpace = currentNumberMembers(group) < group.maxMembers;
 
-		if (!emails || !request || !isOwnerOrMember(senderId, group)
-			|| (group._ownerId != senderId && !group.memberCanInvite)
-			|| !haveFreeSpace) {
-			return throwAuthError(next);
+		if (!isOwnerOrMember(senderId, group)) return next(new ApiError(403));
+		if (!message) return next(ApiError.incorrectParam('message'));
+		if (!request) return next(ApiError.incorrectParam('request'));
+		if (group._ownerId != senderId && !group.memberCanInvite) {
+			return next(new ApiError(403, 'Member can\'t invite'));
 		}
 
-		mailer.sendMail({
-			from: 'Mastermind',
-			to: emails,
-			subject: 'Invitation to join a group.',
-			text: request
-		}, next);
+		mailer.notifyByEmail(
+			emails,
+			'Invitation to join a group.',
+			request,
+			next
+		);
 	};
 
 	Group.prototype.requestToJoin = function(req, request, next) {
@@ -239,9 +240,8 @@ module.exports = function(Group) {
 		var senderId = req.accessToken.userId.toString();
 		var group = this;
 
-		if (!request || isOwnerOrMember(senderId, group)) {
-			return throwAuthError(next);
-		}
+		if (isOwnerOrMember(senderId, group)) return next(new ApiError(403));
+		if (!request) return next(ApiError.incorrectParam('request'));
 
 		async.waterfall([
 			function(cb) {
@@ -257,19 +257,19 @@ module.exports = function(Group) {
 					_groupId: group._id
 				}, function(err, result, created) {
 					if (err) return cb(err);
+					if (created) return cb();
 					// if find another active request
-					if (!created) return cb(authorizationError);
-					cb();
+					cb(ApiError(403, 'Already have active request'));
 				});
 			},
 			Customer.findById.bind(Customer, group._ownerId),
 			function(customer, cb) {
-				mailer.sendMail({
-					from: 'Mastermind',
-					to: customer.email,
-					subject: 'Request to join the group.',
-					text: request
-				}, cb);
+				mailer.notifyByEmail(
+					customer.email,
+					'Request to join the group.',
+					request,
+					cb
+				);
 			}
 		], next);
 	};
@@ -300,53 +300,69 @@ module.exports = function(Group) {
 		var group = this;
 		var haveFreeSpace = currentNumberMembers(group) < group.maxMembers;
 
-		if (!haveFreeSpace) return throwAuthError(next);
+		if (!haveFreeSpace) return next(new ApiError(403, 'Group don\'t have free space'));
 
 		async.waterfall([
-			// Find request
-			function(cb) {
-				JoinRequest.findOne({
-					where: {
-						_id: requestId,
-						_groupId: group._id,
-						closed: false
-					}
-				}, cb);
-			},
-			// Find request owner
-			function(request, cb) {
-				if (!request) return cb(authorizationError);
-
-				Customer.findById(request._ownerId, function(err, customer) {
-					if (err) return cb(err);
-					if (!customer) return cb(authorizationError);
-
-					cb(null, request, customer);
-				});
-			},
-			// Update models and notify request owner
-			function(request, customer, cb) {
-				async.series([
-					function(callback) {
-						request.approved = true;
-						request.closed = true;
-						request.save(callback);
-					},
-					function(callback) {
-						group._memberIds.push(customer._id);
-						group.save(callback);
-					},
-					function(callback) {
-						mailer.sendMail({
-							from: 'Mastermind',
-							to: customer.email,
-							subject: 'Your request to join the group.',
-							text: 'You request to join ' + group.name + ' group was accepted.\n\nThanks'
-						}, callback);
-					}
-				], cb);
-			}
+			findRequest,
+			findRequestOwner,
+			updateModelsAndNotifyRequestOwner
 		], next);
+
+		function findRequest(cb) {
+			JoinRequest.findOne({
+				where: {
+					_id: requestId,
+					_groupId: group._id,
+					closed: false
+				}
+			}, cb);
+		}
+
+		function findRequestOwner(request, cb) {
+			if (!request) return cb(new ApiError(404));
+
+			Customer.findById(request._ownerId, function(err, customer) {
+				if (err) return cb(err);
+				if (!customer) return cb(new ApiError(404));
+
+				cb(null, request, customer);
+			});
+		}
+
+		function updateModelsAndNotifyRequestOwner(request, requestOwner, cb) {
+			// save membersList before change
+			var oldMembersIds = group._memberIds.slice();
+
+			async.series([
+				function(callback) {
+					request.approved = true;
+					request.closed = true;
+					request.save(callback);
+				},
+				function(callback) {
+					group._memberIds.push(requestOwner._id);
+					group.save(callback);
+				},
+				function(callback) {
+					mailer.notifyByEmail(
+						requestOwner.email,
+						'Your request to join the group.',
+						'You request to join ' + group.name + ' group was accepted.\n\nThanks',
+						callback
+					);
+				}
+			], function(err) {
+				if (err) return cb(err);
+
+				cb();
+
+				mailer.notifyById(
+					oldMembersIds,
+					'New group member',
+					'A new member of the "' + group.name + '" group is ' + requestOwner.firstName + ' ' + requestOwner.lastName
+				);
+			});
+		}
 	};
 
 	Group.prototype.rejectRequest = function(req, requestId, next) {
@@ -367,11 +383,11 @@ module.exports = function(Group) {
 			},
 			// Find request owner
 			function(request, cb) {
-				if (!request) return cb(authorizationError);
+				if (!request) return cb(new ApiError(404));
 
 				Customer.findById(request._ownerId, function(err, customer) {
 					if (err) return cb(err);
-					if (!customer) return cb(authorizationError);
+					if (!customer) return cb(new ApiError(404));
 
 					cb(null, request, customer);
 				});
@@ -384,12 +400,12 @@ module.exports = function(Group) {
 				request.save(function(err) {
 					if (err) return cb(err);
 
-					mailer.sendMail({
-						from: 'Mastermind',
-						to: customer.email,
-						subject: 'Your request to join the group.',
-						text: 'You request to join ' + group.name + ' group was rejected.\n\nThanks'
-					}, cb);
+					mailer.notifyByEmail(
+						customer.email,
+						'Your request to join the group.',
+						'You request to join ' + group.name + ' group was rejected.\n\nThanks',
+						cb
+					);
 				});
 			}
 		], next);
@@ -464,33 +480,32 @@ module.exports = function(Group) {
 	function validateMaxMembersField(ctx, group, next) {
 		if (ctx.req.body.maxMembers &&
 			ctx.req.body.maxMembers < currentNumberMembers(ctx.instance)) {
-			return throwAuthError(next);
+			return next(ApiError.incorrectParam('maxMembers'));
 		}
 
 		next();
 	}
 
 	function allowMembersLeaveGroup(ctx, group, next) {
-		var groupId = ctx.req.params.id;
+		var group = ctx.instance;
+		var senderId = ctx.req.accessToken.userId.toString();
 		var delUserId = ctx.req.params.fk;
-		var userId = ctx.req.accessToken.userId;
 
-		Group.findById(groupId, function(err, group) {
-			if (err) return next(err);
-			if (group._ownerId.toString() == userId) return next();
-
-			var isMember = group._memberIds.some(function(id) {
-				return id.toString() == userId
-			});
-
-			if (isMember && delUserId == userId) return next();
-
-			throwAuthError(next);
+		var senderIsOwner = senderId === group._ownerId.toString();
+		var isMember = group._memberIds.some(function(id) {
+			return id.toString() === delUserId;
 		});
+
+		if (!isMember) return next(ApiError.incorrectParam('fk'));
+		if (senderId !== delUserId && !senderIsOwner) {
+			return next(new ApiError(403));
+		}
+
+		next();
 	}
 
 	function excludePrivateGroups(ctx, modelInstance, next) {
-		var userId = ctx.req.accessToken.userId;
+		var senderId = ctx.req.accessToken.userId;
 
 		if (Array.isArray(ctx.result)) {
 			var groups = ctx.result;
@@ -498,31 +513,25 @@ module.exports = function(Group) {
 			for (var i = 0; i < groups.length; i++) {
 				if (!groups[i].private) continue;
 
-				if (!isOwnerOrMember(userId, groups[i])) {
+				if (!isOwnerOrMember(senderId, groups[i])) {
 					groups.splice(i, 1);
 					i--;
 				}
 			}
-		} else if(ctx.result.private && !isOwnerOrMember(userId, ctx.result)) {
-			return throwAuthError(next);
+		} else if(ctx.result.private && !isOwnerOrMember(senderId, ctx.result)) {
+			return next(new ApiError(403));
 		}
 
 		next();
 	}
 
 	function checkIsGroupMember(ctx, modelInstance, next) {
-		var groupId = ctx.req.params.id;
-		var userId = ctx.req.accessToken.userId;
+		var group = ctx.instance;
+		var senderId = ctx.req.accessToken.userId.toString();
 
-		Group.findById(groupId, function(err, group) {
-			if (err) return next(err);
-
-			if (group.private && !isOwnerOrMember(userId, group)) {
-				return throwAuthError(next);
-			}
-
-			next();
-		});
+		if(group.private && !isOwnerOrMember(senderId, group)) {
+			return next(new ApiError(403));
+		}
 	}
 
 	function excludeFields(ctx, modelInstance, next) {
@@ -563,13 +572,6 @@ module.exports = function(Group) {
 		});
 
 		return isOwner || isMember;
-	}
-
-	function throwAuthError(next) {
-		var error = new Error('Authorization Required');
-		error.statusCode = 401;
-		error.code = 'AUTHORIZATION_REQUIRED';
-		next(error);
 	}
 
 	function currentNumberMembers(group) {
