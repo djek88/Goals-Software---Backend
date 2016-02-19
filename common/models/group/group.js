@@ -220,7 +220,6 @@ module.exports = function(Group) {
 		emails = prepareEmails(emails);
 
 		if (!isOwnerOrMember(senderId, group)) return next(new ApiError(403));
-		if (!message) return next(ApiError.incorrectParam('message'));
 		if (!request) return next(ApiError.incorrectParam('request'));
 		if (group._ownerId != senderId && !group.memberCanInvite) {
 			return next(new ApiError(403, 'Member can\'t invite'));
