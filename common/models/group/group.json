@@ -1,7 +1,7 @@
 {
 	"name": "Group",
 	"base": "PersistedModel",
-	"strict": true,
+	"strict": "throw",
 	"options": {
 		"mongodb": {
 			"collection": "Groups"
@@ -135,7 +135,10 @@
 			"permission": "ALLOW"
 		},
 		{
-			"property": "baseGroupInfo",
+			"property": [
+				"baseGroupInfo",
+				"countPassedSessions"
+			],
 			"principalType": "ROLE",
 			"principalId": "$everyone",
 			"permission": "ALLOW"

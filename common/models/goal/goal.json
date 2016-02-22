@@ -1,7 +1,7 @@
 {
 	"name": "Goal",
 	"base": "PersistedModel",
-	"strict": true,
+	"strict": "throw",
 	"options": {
 		"mongodb": {
 			"collection": "Goals"

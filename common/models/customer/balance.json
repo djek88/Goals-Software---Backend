@@ -1,7 +1,7 @@
 {
 	"name": "Balance",
 	"base": "PersistedModel",
-	"strict": true,
+	"strict": "throw",
 	"options": {
 		"validateUpsert": true
 	},

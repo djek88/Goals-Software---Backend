@@ -3,9 +3,7 @@
 		"sources": [
 			"../common/models/customer",
 			"../common/models/group",
-			"../common/models/session",
 			"../common/models/goal",
-			"../common/models/joinRequest",
 			"../common/models/container",
 			"../common/models/additional"
 		],

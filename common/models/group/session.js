@@ -6,5 +6,5 @@ module.exports = function(Session) {
 	});
 
 	// acls
-	// 1)method find sesions must be allow for non authentical user.
+	// 1)method find sessions must be allow for non authentical user.
 }

@@ -1,6 +1,7 @@
 {
 	"name": "SessionConf",
 	"base": "PersistedModel",
+	"strict": "throw",
 	"options": {
 		"validateUpsert": true
 	},
@@ -25,7 +26,7 @@
 			"type": "Number",
 			"default": 1
 		},
-		"roudLength": {
+		"roundLength": {
 			"type": ["Number"],
 			"default": [120, 180, 90, 120]
 		}

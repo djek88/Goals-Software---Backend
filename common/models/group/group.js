@@ -1,4 +1,5 @@
 var loopback = require('loopback');
+var moment = require('moment');
 var async = require('async');
 var ApiError = require('../../../server/lib/error/Api-error');
 var mailer = require('../../../server/lib/mailer');
@@ -110,6 +111,13 @@ module.exports = function(Group) {
 			{arg: 'req', type: 'object', 'http': {source: 'req'}},
 			{arg: 'requestId', type: 'string', description: 'Request id', required: true}
 		]
+	});
+	// Get count for passed sessions
+	Group.remoteMethod('countPassedSessions', {
+		isStatic: false,
+		description: 'Get count for passed sessions.',
+		http: {path: '/passed-sessions-count', verb: 'get'},
+		returns: {arg: 'count', type: 'number'}
 	});
 
 	Group.prototype.changeGroupOwner = function(ownerId, next) {
@@ -410,6 +418,13 @@ module.exports = function(Group) {
 		], next);
 	};
 
+	Group.prototype.countPassedSessions = function(next) {
+		Group.app.models.Session.count({
+			_groupId: this._id,
+			startAt: {lt: new Date()}
+		}, next);
+	};
+
 	// Deny set manualy id field
 	Group.beforeRemote('create', delId);
 	Group.beforeRemote('prototype.updateAttributes', delId);
@@ -419,9 +434,17 @@ module.exports = function(Group) {
 	// Deny add members to group during create or update group model
 	Group.beforeRemote('create', excludeMemberIdsField);
 	Group.beforeRemote('prototype.updateAttributes', excludeMemberIdsField);
-	// Validate roudLength field
-	Group.beforeRemote('create', validateRoudLengthField);
-	Group.beforeRemote('prototype.updateAttributes', validateRoudLengthField);
+	// Exclude '_nextSessionId', _lastSessionId fields during create or update group model
+	Group.beforeRemote('create', excludeSessionsFields);
+	Group.beforeRemote('prototype.updateAttributes', excludeSessionsFields);
+	// Validate roundLength field
+	Group.beforeRemote('create', validateRoundLengthField);
+	Group.beforeRemote('prototype.updateAttributes', validateRoundLengthField);
+	Group.beforeRemote('prototype.__update__SessionConf', validateRoundLengthField);
+	// Create next session for group
+	Group.afterRemote('create', createNextSession);
+	Group.afterRemote('prototype.updateAttributes', updateNextSession);
+	Group.afterRemote('prototype.__update__SessionConf', updateNextSession);
 	// Validate maxMembers field
 	Group.beforeRemote('prototype.updateAttributes', validateMaxMembersField);
 	// Allow members to leave the group
@@ -459,21 +482,79 @@ module.exports = function(Group) {
 		next();
 	}
 
-	function validateRoudLengthField(ctx, group, next) {
-		var sessionConf = ctx.req.body.sessionConf || {};
-		var roudLength = sessionConf.roudLength;
+	function excludeSessionsFields(ctx, group, next) {
+		delete ctx.req.body._nextSessionId;
+		delete ctx.req.body._lastSessionId;
+		next();
+	}
 
-		if (!Array.isArray(roudLength)) return next();
+	function validateRoundLengthField(ctx, group, next) {
+		var methodName = ctx.req.remotingContext.method.name;
+		var isUpdateSessConf = methodName === '__update__SessionConf';
+		var sessionConf = isUpdateSessConf ? ctx.req.body : ctx.req.body.sessionConf || {};
+		var roundLength = sessionConf.roundLength;
+
+		if (!Array.isArray(roundLength)) return next();
 
 		var minLengthRound = 0;
 
-		var round1 = roudLength[0] >= minLengthRound ? Number(roudLength[0]) : minLengthRound;
-		var round2PartA = roudLength[1] >= minLengthRound ? Number(roudLength[1]) : minLengthRound;
-		var round2PartB = roudLength[2] >= minLengthRound ? Number(roudLength[2]) : minLengthRound;
-		var round3 = roudLength[3] >= minLengthRound ? Number(roudLength[3]) : minLengthRound;
+		var round1 = roundLength[0] >= minLengthRound ? Number(roundLength[0]) : minLengthRound;
+		var round2PartA = roundLength[1] >= minLengthRound ? Number(roundLength[1]) : minLengthRound;
+		var round2PartB = roundLength[2] >= minLengthRound ? Number(roundLength[2]) : minLengthRound;
+		var round3 = roundLength[3] >= minLengthRound ? Number(roundLength[3]) : minLengthRound;
 
-		ctx.req.body.sessionConf.roudLength = [round1, round2PartA, round2PartB, round3];
+		if (isUpdateSessConf) {
+			ctx.req.body.roundLength = [round1, round2PartA, round2PartB, round3];
+		} else {
+			ctx.req.body.sessionConf.roundLength = [round1, round2PartA, round2PartB, round3];
+		}
 		next();
+	}
+
+	function createNextSession(ctx, group, next) {
+		if (!group.sessionConf.sheduled) return next();
+
+		async.waterfall([
+			createSession.bind(null, group),
+			function(session, cb) {
+				ctx.result._nextSessionId = session._id;
+				ctx.result.save(cb);
+			}
+		], next);
+	}
+
+	function updateNextSession(ctx, group, next) {
+		var groupInst = ctx.instance;
+		var Session = Group.app.models.Session;
+
+		if (!groupInst.sessionConf.sheduled && !groupInst._nextSessionId) {
+			return next();
+		}
+
+		// Update session inst
+		if (groupInst.sessionConf.sheduled && groupInst._nextSessionId) {
+			updateSession(groupInst._nextSessionId, groupInst, next);
+		}
+		// Create session inst
+		else if (groupInst.sessionConf.sheduled && !groupInst._nextSessionId) {
+			async.waterfall([
+				createSession.bind(null, groupInst),
+				function(session, cb) {
+					groupInst._nextSessionId = session._id;
+					groupInst.save(cb);
+				}
+			], next);
+		}
+		// Delete session inst
+		else if (!groupInst.sessionConf.sheduled && groupInst._nextSessionId) {
+			async.series([
+				Session.destroyById.bind(Session, groupInst._nextSessionId),
+				function(cb) {
+					groupInst._nextSessionId = null;
+					groupInst.save(cb);
+				}
+			], next);
+		}
 	}
 
 	function validateMaxMembersField(ctx, group, next) {
@@ -517,7 +598,7 @@ module.exports = function(Group) {
 					i--;
 				}
 			}
-		} else if(ctx.result.private && !isOwnerOrMember(senderId, ctx.result)) {
+		} else if (ctx.result.private && !isOwnerOrMember(senderId, ctx.result)) {
 			return next(new ApiError(403));
 		}
 
@@ -589,5 +670,131 @@ module.exports = function(Group) {
 		});
 
 		return emails.join(', ');
+	}
+
+	function createSession(group, cb) {
+		var startAt = calculatedStartAtDate(
+			group.sessionConf.frequencyType,
+			group.sessionConf.day,
+			group.sessionConf.timeZone,
+			group.sessionConf.time
+		);
+
+		Group.app.models.Session.create({
+			startAt: startAt,
+			_groupId: group._id
+		}, cb);
+	}
+
+	function updateSession(sessionId, group, cb) {
+		Group.app.models.Session.findById(group._nextSessionId, function(err, session) {
+			if (err) return cb(err);
+
+			var startAt = calculatedStartAtDate(
+				group.sessionConf.frequencyType,
+				group.sessionConf.day,
+				group.sessionConf.timeZone,
+				group.sessionConf.time
+			);
+
+			session.updateAttributes({
+				startAt: startAt,
+				excuses: {}
+			}, cb);
+		});
+	}
+
+	function calculatedStartAtDate(freqType, day, timeZone, time) {
+		var nextSessDate = getDateByFreqTypeAndWeekday(freqType, day);
+		var result = moment(nextSessDate)
+			.tz(timeZone)
+			.hour(time)
+			.minute(time.split(".")[1])
+			.second(0)
+			.utc()
+			.format();
+
+		return new Date(result);
+	}
+
+	function getDateByFreqTypeAndWeekday(freqType, day) {
+		var d = new Date();
+		var curDate = d.getDate();
+
+		d.setDate(1)
+
+		// Get the first desired weekday in the month
+		while(d.getDay() !== day) {
+			d.setDate(d.getDate() + 1);
+		}
+
+		// Weekly
+		if (freqType === 1) {
+			var curMonth = d.getMonth();
+
+			while(d.getMonth() === curMonth) {
+				if (d.getDate() > curDate) return d;
+				d.setDate(d.getDate() + 7);
+			}
+		}
+
+		// First, Second, Third or Fourth week
+		if (freqType >= 2 && freqType <= 5) {
+			var desiredWeek = freqType - 2;
+
+			d.setDate(d.getDate() + 7 * desiredWeek);
+			if (d.getDate() > curDate) return d;
+
+			// increase month
+			d.setDate(1);
+			d.setMonth(d.getMonth() + 1);
+
+			while(d.getDay() !== day) {
+				d.setDate(d.getDate() + 1);
+			}
+
+			d.setDate(d.getDate() + 7 * desiredWeek);
+			return d;
+		}
+
+		// First and third week
+		if (freqType === 6) {
+			// First week
+			if (d.getDate() > curDate) return d;
+
+			// Increase to third week
+			d.setDate(d.getDate() + 14);
+			if (d.getDate() > curDate) return d;
+
+			// Get date from first week next month
+			d.setDate(1);
+			d.setMonth(d.getMonth() + 1);
+
+			while(d.getDay() !== day) {
+				d.setDate(d.getDate() + 1);
+			}
+			return d;
+		}
+
+		// Second and fourth week
+		if (freqType === 7) {
+			// Increase to second week
+			d.setDate(d.getDate() + 7);
+			if (d.getDate() > curDate) return d;
+
+			// Increase to fourth week
+			d.setDate(d.getDate() + 14);
+			if (d.getDate() > curDate) return d;
+
+			// Get date from second week next month
+			d.setDate(1);
+			d.setMonth(d.getMonth() + 1);
+
+			while(d.getDay() !== day) {
+				d.setDate(d.getDate() + 1);
+			}
+			d.setDate(d.getDate() + 7);
+			return d;
+		}
 	}
 };
