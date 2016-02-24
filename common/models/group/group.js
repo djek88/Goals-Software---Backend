@@ -119,6 +119,16 @@ module.exports = function(Group) {
 		http: {path: '/passed-sessions-count', verb: 'get'},
 		returns: {arg: 'count', type: 'number'}
 	});
+	// Provide excuse for the next mastermind session
+	Group.remoteMethod('provideExcuse', {
+		isStatic: false,
+		description: 'Provide excuse for the next mastermind session.',
+		http: {path: '/provide-excuse', verb: 'post'},
+		accepts: [
+			{arg: 'req', type: 'object', 'http': {source: 'req'}},
+			{arg: 'excuse', type: 'string', description: 'Excuse', required: true}
+		]
+	});
 
 	Group.prototype.changeGroupOwner = function(ownerId, next) {
 		var Customer = Group.app.models.Customer;
@@ -164,7 +174,7 @@ module.exports = function(Group) {
 
 		if (!isOwnerOrMember(senderId, group)) return next(new ApiError(403));
 		if (!message) return next(ApiError.incorrectParam('message'));
-		if (!group._memberIds.length) return next(new ApiError(404, 'Members Not found'));
+		if (!group._memberIds.length) return next(new ApiError(404, 'Members not found'));
 
 		Group.app.models.Customer.findById(senderId, function(err, sender) {
 			if (err) return next(err);
@@ -326,11 +336,11 @@ module.exports = function(Group) {
 		}
 
 		function findRequestOwner(request, cb) {
-			if (!request) return cb(new ApiError(404));
+			if (!request) return cb(new ApiError(404, 'Request to join not found'));
 
 			Customer.findById(request._ownerId, function(err, customer) {
 				if (err) return cb(err);
-				if (!customer) return cb(new ApiError(404));
+				if (!customer) return cb(new ApiError(404, 'Request owner not found'));
 
 				cb(null, request, customer);
 			});
@@ -390,11 +400,11 @@ module.exports = function(Group) {
 			},
 			// Find request owner
 			function(request, cb) {
-				if (!request) return cb(new ApiError(404));
+				if (!request) return cb(new ApiError(404, 'Request to join not found'));
 
 				Customer.findById(request._ownerId, function(err, customer) {
 					if (err) return cb(err);
-					if (!customer) return cb(new ApiError(404));
+					if (!customer) return cb(new ApiError(404, 'Request owner not found'));
 
 					cb(null, request, customer);
 				});
@@ -423,6 +433,29 @@ module.exports = function(Group) {
 			_groupId: this._id,
 			startAt: {lt: new Date()}
 		}, next);
+	};
+
+	Group.prototype.provideExcuse = function(req, excuse, next) {
+		var senderId = req.accessToken.userId.toString();
+		var group = this;
+
+		if (!isOwnerOrMember(senderId, group)) return next(new ApiError(403));
+		if (!group._nextSessionId) return next(new ApiError(404, 'Next session not found'));
+		if (!excuse) return next(ApiError.incorrectParam('excuse'));
+
+		Group.app.models.Session.findById(group._nextSessionId, function(err, session) {
+			if (err) return next(err);
+			if (!session) return next(new ApiError(404, 'Next session not found'));
+
+			var isAlreadyExistExcuse = Object.keys(session.excuses).some(function(id) {
+				return id === senderId;
+			});
+
+			if (isAlreadyExistExcuse) return next(new ApiError(403));
+
+			session.excuses[senderId] = excuse;
+			session.updateAttributes({excuses: session.excuses}, next);
+		});
 	};
 
 	// Deny set manualy id field
@@ -517,8 +550,7 @@ module.exports = function(Group) {
 		async.waterfall([
 			createSession.bind(null, group),
 			function(session, cb) {
-				ctx.result._nextSessionId = session._id;
-				ctx.result.save(cb);
+				ctx.result.updateAttributes({_nextSessionId: session._id}, cb);
 			}
 		], next);
 	}
@@ -540,8 +572,7 @@ module.exports = function(Group) {
 			async.waterfall([
 				createSession.bind(null, groupInst),
 				function(session, cb) {
-					groupInst._nextSessionId = session._id;
-					groupInst.save(cb);
+					groupInst.updateAttributes({_nextSessionId: session._id}, cb);
 				}
 			], next);
 		}
@@ -550,8 +581,7 @@ module.exports = function(Group) {
 			async.series([
 				Session.destroyById.bind(Session, groupInst._nextSessionId),
 				function(cb) {
-					groupInst._nextSessionId = null;
-					groupInst.save(cb);
+					groupInst.updateAttributes({_nextSessionId: null}, cb);
 				}
 			], next);
 		}
