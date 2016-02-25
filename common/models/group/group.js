@@ -451,9 +451,12 @@ module.exports = function(Group) {
 				return id === senderId;
 			});
 
-			if (isAlreadyExistExcuse) return next(new ApiError(403));
+			if (isAlreadyExistExcuse) return next(new ApiError(403, 'Already have excuse'));
 
-			session.excuses[senderId] = excuse;
+			session.excuses[senderId] = {
+				excuse: excuse,
+				valid: true
+			};
 			session.updateAttributes({excuses: session.excuses}, next);
 		});
 	};
