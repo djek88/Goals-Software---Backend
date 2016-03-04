@@ -23,8 +23,8 @@
 			"default": {}
 		},
 		"state": {
-			"type": "String",
-			"default": ""
+			"type": ["Number"],
+			"default": []
 		}
 	},
 	"mixins": {
@@ -37,6 +37,16 @@
 			"type": "belongsTo",
 			"model": "Group",
 			"foreignKey": "_groupId"
+		},
+		"Facilitator": {
+			"type": "belongsTo",
+			"model": "Customer",
+			"foreignKey": "_facilitatorId"
+		},
+		"Participants": {
+			"type": "referencesMany",
+			"model": "Customer",
+			"foreignKey": "_participantIds"
 		}
 	},
 	"acls": [

@@ -769,6 +769,8 @@ module.exports = function(Group) {
 				if (d.getDate() > curDate) return d;
 				d.setDate(d.getDate() + 7);
 			}
+			// if in cur month not find desired day
+			return d;
 		}
 
 		// First, Second, Third or Fourth week
