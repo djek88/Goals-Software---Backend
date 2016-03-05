@@ -429,9 +429,11 @@ module.exports = function(Group) {
 	};
 
 	Group.prototype.countPassedSessions = function(next) {
+		var now = new Date(moment().utc().format()).getTime();
+
 		Group.app.models.Session.count({
 			_groupId: this._id,
-			startAt: {lt: new Date()}
+			startAt: {lt: now}
 		}, next);
 	};
 
@@ -481,6 +483,8 @@ module.exports = function(Group) {
 	Group.afterRemote('create', createNextSession);
 	Group.afterRemote('prototype.updateAttributes', updateNextSession);
 	Group.afterRemote('prototype.__update__SessionConf', updateNextSession);
+	// Delete next session after delete group
+	Group.afterRemote('deleteById', deleteNextSession);
 	// Validate maxMembers field
 	Group.beforeRemote('prototype.updateAttributes', validateMaxMembersField);
 	// Allow members to leave the group
@@ -588,6 +592,16 @@ module.exports = function(Group) {
 				}
 			], next);
 		}
+	}
+
+	function deleteNextSession(ctx, group, next) {
+		var Session = Group.app.models.Session;
+		var groupId = ctx.args.id;
+		var now = new Date(moment().utc().format()).getTime();
+
+		Session.destroyAll({
+			and: [{_groupId: groupId}, {startAt: {gt: now}}],
+		}, next);
 	}
 
 	function validateMaxMembersField(ctx, group, next) {

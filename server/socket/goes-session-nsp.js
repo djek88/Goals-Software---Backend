@@ -77,7 +77,7 @@ function onSkipRound(roomName) {
 	}
 }
 
-function onPauseResume(roomName) {
+function onPauseResume(roomName, cb) {
 	var room = this.nsp.adapter.rooms[roomName];
 
 	if (!room || !room.timer || !room.facilitatorId ||
@@ -85,9 +85,8 @@ function onPauseResume(roomName) {
 		return;
 	}
 
-	if (room.timer.isPause) return room.timer.resume();
-
-	room.timer.pause();
+	room.timer.isPause ? room.timer.resume() : room.timer.pause();
+	cb();
 }
 
 function skipRoundWhenUserLeave(reason) {
