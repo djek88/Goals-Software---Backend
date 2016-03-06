@@ -2,6 +2,7 @@ var async = require('async');
 var app = require('../server');
 var shared = require('./shared');
 var Timer = require('../lib/session-timer');
+var calculatedStartAtDate = require('../../common/models/group/group').calculatedStartAtDate;
 
 module.exports = function(io) {
 	var goesNsp = io.of('/goesSession');
@@ -139,8 +140,9 @@ function turnToNextState(nsp, roomName, session, group) {
 		if (err) return nsp.to(roomName).emit('session:stateUpdate', err);
 
 		if (isSessionFinish) {
-			//console.log('session finish');
-			return nsp.to(roomName).emit('session:stateUpdate', null, null);
+			return updateGroupAfterFinish(group, freshSess, function() {
+				nsp.to(roomName).emit('session:stateUpdate', null, null);	
+			});
 		}
 
 		var curState = freshSess.state;
@@ -244,6 +246,35 @@ function safelyUpdateSessionState(session, state, cb) {
 			cb(err, freshSess);
 		});
 	}
+}
+
+function updateGroupAfterFinish(group, session, cb) {
+	if (!group.sessionConf.sheduled) {
+		return group.updateAttributes({
+			_nextSessionId: null,
+			_lastSessionId: session._id
+		}, cb);
+	}
+
+	var startAt = calculatedStartAtDate(
+		group.sessionConf.frequencyType,
+		group.sessionConf.day,
+		group.sessionConf.timeZone,
+		group.sessionConf.time
+	);
+
+	app.models.Session.create({
+		startAt: startAt,
+		_groupId: group._id
+	}, function(err, newSess) {
+		if (err) return cb(err);
+		if (!newSess) return cb(new Error());
+
+		group.updateAttributes({
+			_nextSessionId: newSess._id,
+			_lastSessionId: session._id
+		}, cb);
+	});
 }
 
 function getTimeForCurState(session, group) {

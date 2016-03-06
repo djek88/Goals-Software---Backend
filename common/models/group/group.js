@@ -692,33 +692,6 @@ module.exports = function(Group) {
 		return destination;
 	}
 
-	function isOwnerOrMember(userId, group) {
-		var isOwner = group._ownerId.toString() === userId.toString();
-		var isMember = group._memberIds.some(function(id) {
-			return id.toString() === userId.toString();
-		});
-
-		return isOwner || isMember;
-	}
-
-	function currentNumberMembers(group) {
-		return group._memberIds.length + 1;
-	}
-
-	function prepareEmails(emails) {
-		// trim spaces
-		emails = emails.split(';').map(function(email) {
-			return email.replace(/^\s+/, '').replace(/\s+$/, '');
-		});
-		// remove invalid emails
-		var re = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
-		emails = emails.filter(function(email) {
-			return re.test(email);
-		});
-
-		return emails.join(', ');
-	}
-
 	function createSession(group, cb) {
 		var startAt = calculatedStartAtDate(
 			group.sessionConf.frequencyType,
@@ -750,100 +723,129 @@ module.exports = function(Group) {
 			}, cb);
 		});
 	}
+};
 
-	function calculatedStartAtDate(freqType, day, timeZone, time) {
-		var nextSessDate = getDateByFreqTypeAndWeekday(freqType, day);
-		var result = moment(nextSessDate)
-			.tz(timeZone)
-			.hour(time)
-			.minute(time.split(".")[1])
-			.second(0)
-			.utc()
-			.format();
+module.exports.calculatedStartAtDate = calculatedStartAtDate;
 
-		return new Date(result);
+function isOwnerOrMember(userId, group) {
+	var isOwner = group._ownerId.toString() === userId.toString();
+	var isMember = group._memberIds.some(function(id) {
+		return id.toString() === userId.toString();
+	});
+
+	return isOwner || isMember;
+}
+
+function currentNumberMembers(group) {
+	return group._memberIds.length + 1;
+}
+
+function prepareEmails(emails) {
+	// trim spaces
+	emails = emails.split(';').map(function(email) {
+		return email.replace(/^\s+/, '').replace(/\s+$/, '');
+	});
+	// remove invalid emails
+	var re = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+	emails = emails.filter(function(email) {
+		return re.test(email);
+	});
+
+	return emails.join(', ');
+}
+
+function calculatedStartAtDate(freqType, day, timeZone, time) {
+	var nextSessDate = getDateByFreqTypeAndWeekday(freqType, day);
+	var result = moment(nextSessDate)
+		.tz(timeZone)
+		.hour(time)
+		.minute(time.split(".")[1])
+		.second(0)
+		.utc()
+		.format();
+
+	return new Date(result);
+}
+
+function getDateByFreqTypeAndWeekday(freqType, day) {
+	var d = new Date();
+	var curDate = d.getDate();
+
+	d.setDate(1)
+
+	// Get the first desired weekday in the month
+	while(d.getDay() !== day) {
+		d.setDate(d.getDate() + 1);
 	}
 
-	function getDateByFreqTypeAndWeekday(freqType, day) {
-		var d = new Date();
-		var curDate = d.getDate();
+	// Weekly
+	if (freqType === 1) {
+		var curMonth = d.getMonth();
 
-		d.setDate(1)
+		while(d.getMonth() === curMonth) {
+			if (d.getDate() > curDate) return d;
+			d.setDate(d.getDate() + 7);
+		}
+		// if in cur month not find desired day
+		return d;
+	}
 
-		// Get the first desired weekday in the month
+	// First, Second, Third or Fourth week
+	if (freqType >= 2 && freqType <= 5) {
+		var desiredWeek = freqType - 2;
+
+		d.setDate(d.getDate() + 7 * desiredWeek);
+		if (d.getDate() > curDate) return d;
+
+		// increase month
+		d.setDate(1);
+		d.setMonth(d.getMonth() + 1);
+
 		while(d.getDay() !== day) {
 			d.setDate(d.getDate() + 1);
 		}
 
-		// Weekly
-		if (freqType === 1) {
-			var curMonth = d.getMonth();
-
-			while(d.getMonth() === curMonth) {
-				if (d.getDate() > curDate) return d;
-				d.setDate(d.getDate() + 7);
-			}
-			// if in cur month not find desired day
-			return d;
-		}
-
-		// First, Second, Third or Fourth week
-		if (freqType >= 2 && freqType <= 5) {
-			var desiredWeek = freqType - 2;
-
-			d.setDate(d.getDate() + 7 * desiredWeek);
-			if (d.getDate() > curDate) return d;
-
-			// increase month
-			d.setDate(1);
-			d.setMonth(d.getMonth() + 1);
-
-			while(d.getDay() !== day) {
-				d.setDate(d.getDate() + 1);
-			}
-
-			d.setDate(d.getDate() + 7 * desiredWeek);
-			return d;
-		}
-
-		// First and third week
-		if (freqType === 6) {
-			// First week
-			if (d.getDate() > curDate) return d;
-
-			// Increase to third week
-			d.setDate(d.getDate() + 14);
-			if (d.getDate() > curDate) return d;
-
-			// Get date from first week next month
-			d.setDate(1);
-			d.setMonth(d.getMonth() + 1);
-
-			while(d.getDay() !== day) {
-				d.setDate(d.getDate() + 1);
-			}
-			return d;
-		}
-
-		// Second and fourth week
-		if (freqType === 7) {
-			// Increase to second week
-			d.setDate(d.getDate() + 7);
-			if (d.getDate() > curDate) return d;
-
-			// Increase to fourth week
-			d.setDate(d.getDate() + 14);
-			if (d.getDate() > curDate) return d;
-
-			// Get date from second week next month
-			d.setDate(1);
-			d.setMonth(d.getMonth() + 1);
-
-			while(d.getDay() !== day) {
-				d.setDate(d.getDate() + 1);
-			}
-			d.setDate(d.getDate() + 7);
-			return d;
-		}
+		d.setDate(d.getDate() + 7 * desiredWeek);
+		return d;
 	}
-};
+
+	// First and third week
+	if (freqType === 6) {
+		// First week
+		if (d.getDate() > curDate) return d;
+
+		// Increase to third week
+		d.setDate(d.getDate() + 14);
+		if (d.getDate() > curDate) return d;
+
+		// Get date from first week next month
+		d.setDate(1);
+		d.setMonth(d.getMonth() + 1);
+
+		while(d.getDay() !== day) {
+			d.setDate(d.getDate() + 1);
+		}
+		return d;
+	}
+
+	// Second and fourth week
+	if (freqType === 7) {
+		// Increase to second week
+		d.setDate(d.getDate() + 7);
+		if (d.getDate() > curDate) return d;
+
+		// Increase to fourth week
+		d.setDate(d.getDate() + 14);
+		if (d.getDate() > curDate) return d;
+
+		// Get date from second week next month
+		d.setDate(1);
+		d.setMonth(d.getMonth() + 1);
+
+		while(d.getDay() !== day) {
+			d.setDate(d.getDate() + 1);
+		}
+		d.setDate(d.getDate() + 7);
+		return d;
+	}
+}

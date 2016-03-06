@@ -59,6 +59,8 @@ function sessionStart(roomName) {
 	async.waterfall([
 		Group.findById.bind(Group, roomName, {include: 'NextSession'}),
 		function(group, cb) {
+			if (!group) return cb(true);
+
 			group.NextSession.getAsync(function(err, session) {
 				if (err || session._facilitatorId) return cb(true);
 
