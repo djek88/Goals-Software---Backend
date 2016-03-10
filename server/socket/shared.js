@@ -1,9 +1,48 @@
+var async = require('async');
+var app = require('../server');
+var calculatedStartAtDate = require('../../common/models/group/group').calculatedStartAtDate;
+
 module.exports = {
+	updateGroupAndSessAfterFinish: updateGroupAndSessAfterFinish,
 	checkAuthBeforeCall: checkAuthBeforeCall,
 	onlineIdsInRoom: onlineIdsInRoom,
 	onclose: onclose,
 	onDisconnect: onDisconnect
 };
+
+function updateGroupAndSessAfterFinish(group, session, callback) {
+	async.series([
+		session.updateAttributes.bind(session, {state: [-1, -1, -1]}),
+		function(cb) {
+			if (!group.sessionConf.sheduled) {
+				return group.updateAttributes({
+					_nextSessionId: null,
+					_lastSessionId: session._id
+				}, cb);
+			}
+
+			var startAt = calculatedStartAtDate(
+				group.sessionConf.frequencyType,
+				group.sessionConf.day,
+				group.sessionConf.timeZone,
+				group.sessionConf.time
+			);
+
+			app.models.Session.create({
+				startAt: startAt,
+				_groupId: group._id
+			}, function(err, newSess) {
+				if (err) return cb(err);
+				if (!newSess) return cb(new Error());
+
+				group.updateAttributes({
+					_nextSessionId: newSess._id,
+					_lastSessionId: session._id
+				}, cb);
+			});
+		}
+	], callback);
+}
 
 function checkAuthBeforeCall(handler) {
 	return function() {

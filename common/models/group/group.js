@@ -127,6 +127,24 @@ module.exports = function(Group) {
 		accepts: [
 			{arg: 'req', type: 'object', 'http': {source: 'req'}},
 			{arg: 'excuse', type: 'string', description: 'Excuse', required: true}
+		],
+		returns: {type: 'object', root: true}
+	});
+	// Get active excuses for the next masterind session
+	Group.remoteMethod('activeExcuses', {
+		isStatic: false,
+		description: 'Get active excuses for the next masterind session.',
+		http: {path: '/active-excuses', verb: 'get'},
+		returns: {type: 'object', root: true}
+	});
+	// Reject excuse
+	Group.remoteMethod('rejectExcuse', {
+		isStatic: false,
+		description: 'Reject excuse for the next masterind session.',
+		http: {path: '/reject-excuse/:excuseId', verb: 'post'},
+		accepts: [
+			{arg: 'req', type: 'object', 'http': {source: 'req'}},
+			{arg: 'excuseId', type: 'string', description: 'Excuse id', required: true}
 		]
 	});
 
@@ -165,7 +183,7 @@ module.exports = function(Group) {
 			}
 		}
 
-		next(ApiError.incorrectParam('ownerId'));
+		next(new ApiError(404, 'Member not found in group'));
 	};
 
 	Group.prototype.sendEmailToGroup = function(req, message, next) {
@@ -201,7 +219,7 @@ module.exports = function(Group) {
 		if (!isOwnerOrMember(senderId, group)) return next(new ApiError(403));
 		if (!message) return next(ApiError.incorrectParam('message'));
 		if (!isOwnerOrMember(memberId, group) || senderId === memberId) {
-			return next(ApiError.incorrectParam('memberId'));
+			return next(new ApiError(404, 'Member not found in group'));
 		}
 
 		Group.app.models.Customer.find({
@@ -276,7 +294,7 @@ module.exports = function(Group) {
 					if (err) return cb(err);
 					if (created) return cb();
 					// if find another active request
-					cb(ApiError(403, 'Already have active request'));
+					cb(new ApiError(403, 'Already have active request'));
 				});
 			},
 			Customer.findById.bind(Customer, group._ownerId),
@@ -463,6 +481,42 @@ module.exports = function(Group) {
 		});
 	};
 
+	Group.prototype.activeExcuses = function(next) {
+		var group = this;
+
+		if (!group._nextSessionId) return next(new ApiError(404, 'Next session not found'));
+
+		Group.app.models.Session.findById(group._nextSessionId, function(err, session) {
+			if (err) return next(err);
+
+			for(var key in session.excuses) {
+				if (!session.excuses[key].valid) {
+					delete session.excuses[key];
+				}
+			}
+
+			next(null, session.excuses);
+		});
+	};
+
+	Group.prototype.rejectExcuse = function(req, excuseId, next) {
+		var group = this;
+
+		if (!group._nextSessionId) return next(new ApiError(404, 'Next session not found'));
+
+		Group.app.models.Session.findById(group._nextSessionId, function(err, session) {
+			if (err) return next(err);
+			if (!session.excuses[excuseId]) return next(new ApiError(404, 'Excuse not found'));
+			if (!session.excuses[excuseId].valid) {
+				return next(new ApiError(403, 'Excuse already rejected'));
+			}
+
+			session.excuses[excuseId].valid = false;
+
+			session.updateAttributes({excuses: session.excuses}, next);
+		});
+	};
+
 	// Deny set manualy id field
 	Group.beforeRemote('create', delId);
 	Group.beforeRemote('prototype.updateAttributes', delId);
@@ -623,7 +677,7 @@ module.exports = function(Group) {
 			return id.toString() === delUserId;
 		});
 
-		if (!isMember) return next(ApiError.incorrectParam('fk'));
+		if (!isMember) return next(new ApiError(404, 'Member not found in group'));
 		if (senderId !== delUserId && !senderIsOwner) {
 			return next(new ApiError(403));
 		}

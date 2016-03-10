@@ -24,6 +24,6 @@ boot(app, __dirname, function(err) {
 	// start the server if `$ node server.js`
 	if (require.main === module) {
 		var server = app.start();
-		require('./socket')(server);
+		app.socketServer = require('./socket')(server);
 	}
 });

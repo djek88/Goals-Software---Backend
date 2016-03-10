@@ -115,7 +115,9 @@
 				"changeGroupOwner",
 				"activeJoinRequests",
 				"approveRequest",
-				"rejectRequest"
+				"rejectRequest",
+				"activeExcuses",
+				"rejectExcuse"
 			],
 			"principalType": "ROLE",
 			"principalId": "$owner",

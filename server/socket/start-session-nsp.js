@@ -1,3 +1,4 @@
+var moment = require('moment');
 var async = require('async');
 var app = require('../server');
 var shared = require('./shared');
@@ -38,7 +39,8 @@ function onJoin(roomName, callback) {
 			group.NextSession.getAsync(cb);
 		}
 	], function(err, session) {
-		if (err || !session || session._facilitatorId) {
+		if (err || !session || session._facilitatorId ||
+			session._participantIds.length) {
 			return callback(new Error('Forbidden'));
 		}
 
@@ -52,9 +54,9 @@ function sessionStart(roomName) {
 	var socket = this;
 	var Group = app.models.Group;
 	var onlineUserIds = shared.onlineIdsInRoom(socket.nsp, roomName);
-	var haveAcess = onlineUserIds.indexOf(socket.user._id.toString()) >= 0;
+	var isJoinedToRoom = onlineUserIds.indexOf(socket.user._id.toString()) >= 0;
 
-	if (!haveAcess || onlineUserIds.length < 2) return;
+	if (!isJoinedToRoom || onlineUserIds.length < 2) return;
 
 	async.waterfall([
 		Group.findById.bind(Group, roomName, {include: 'NextSession'}),
@@ -62,7 +64,10 @@ function sessionStart(roomName) {
 			if (!group) return cb(true);
 
 			group.NextSession.getAsync(function(err, session) {
-				if (err || session._facilitatorId) return cb(true);
+				if (err || session._facilitatorId ||
+					Date.now() < new Date(session.startAt)) {
+					return cb(true);
+				}
 
 				// Set facilitator, participantIds
 				session.updateAttributes({
