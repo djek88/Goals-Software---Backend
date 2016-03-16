@@ -3,6 +3,10 @@
 		"name": "memory",
 		"connector": "memory"
 	},
+	"transient": {
+		"name": "transient",
+		"connector": "transient"
+	},
 	"db": {
 		"host": "localhost",
 		"port": 27017,

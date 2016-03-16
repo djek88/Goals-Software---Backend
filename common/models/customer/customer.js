@@ -1,3 +1,5 @@
+var http = require('http');
+var async = require('async');
 var moment = require('moment-timezone');
 var ApiError = require('../../../server/lib/error/Api-error');
 
@@ -6,6 +8,7 @@ module.exports = function(Customer) {
 
 	// Disable unnecessary methods
 	Customer.disableRemoteMethod('upsert', true);
+	Customer.disableRemoteMethod('create', true);
 	Customer.disableRemoteMethod('__get__accessTokens', false);
 	Customer.disableRemoteMethod('__create__accessTokens', false);
 	Customer.disableRemoteMethod('__delete__accessTokens', false);
@@ -68,14 +71,10 @@ module.exports = function(Customer) {
 
 	// Update avatar field in model
 	Customer.afterRemote('prototype.uploadAvatar', setAvatarField);
-	// Deny set manualy id field
-	Customer.beforeRemote('create', delId);
-	Customer.beforeRemote('prototype.updateAttributes', delId);
-	// Restrict signup for now
-	Customer.beforeRemote('create', checkInvitationKey);
-	// Deny set manualy avatar field
-	Customer.beforeRemote('create', delAvatar);
-	Customer.beforeRemote('prototype.updateAttributes', delAvatar);
+	// Login by FHQ sessionId
+	Customer.beforeRemote('login', loginBySessionId);
+	// Deny set manualy id, fhqSessionId, avatar fields
+	Customer.beforeRemote('prototype.updateAttributes', delProperties);
 
 	function setAvatarField(ctx, modelInstance, next) {
 		var customer = ctx.instance;
@@ -90,21 +89,74 @@ module.exports = function(Customer) {
 		});
 	}
 
-	function delId(ctx, customer, next) {
-		delete ctx.req.body._id;
-		next();
-	}
+	function loginBySessionId(ctx, customer, next) {
+		var sessionId = ctx.req.body._sessionId;
 
-	function checkInvitationKey(ctx, customer, next) {
-		if (ctx.req.body.invitationKey !== 'mastermindSecretKey') {
-			return next(ApiError.incorrectParam('invitationKey'));
+		if (!sessionId) return next(ApiError.incorrectParam('_sessionId'));
+
+		async.waterfall([
+			getMemberData.bind(null, sessionId),
+			function(response, cb) {
+				Customer.findById(response.userid, function(err, customer) {
+					cb(err, response, customer);
+				});
+			},
+			function(response, customer, cb) {
+				if (customer) {
+					customer.updateAttributes({
+						email: response.email,
+						firstName: response.fname,
+						lastName: response.lname,
+						fhqSessionId: sessionId,
+						password: sessionId
+					}, cb);
+				} else {
+					Customer.create({
+						_id: response.userid,
+						email: response.email,
+						firstName: response.fname,
+						lastName: response.lname,
+						fhqSessionId: sessionId,
+						password: sessionId
+					}, cb);
+				}
+			},
+			function(customer, cb) {
+				if (!customer) return cb(new ApiError(500, 'Internal server error'));
+
+				ctx.args.credentials = {
+					email: customer.email,
+					password: sessionId
+				};
+
+				cb();
+			}
+		], next);
+
+		function getMemberData(sessionId, cb) {
+			var reqPath = 'http://www.fusionhq.com/index.php?act=api&todo=loginmemsiteauto&apiemail=leon@leonjay.info&apikey=e174d0a9&memsite=498797&sessionid=' + sessionId;
+
+			http.get(reqPath, function(res) {
+				var response = '';
+
+				res.on('data', function(chunk) {
+					response += chunk;
+				});
+
+				res.on('end', function() {
+					response = JSON.parse(response);
+
+					if (!response.success) return cb(new ApiError(401, response.message));
+
+					cb(null, response);
+				});
+			}).on('error', cb);
 		}
-
-		delete ctx.req.body.invitationKey;
-		next();
 	}
 
-	function delAvatar(ctx, customer, next) {
+	function delProperties(ctx, customer, next) {
+		delete ctx.req.body._id;
+		delete ctx.req.body._fhqSessionId;
 		delete ctx.req.body.avatar;
 		next();
 	}

@@ -1,0 +1,31 @@
+{
+	"name": "Vote",
+	"base": "PersistedModel",
+	"strict": "throw",
+	"options": {
+		"validateUpsert": true
+	},
+	"properties": {
+		"approved": {
+			"type": "Boolean",
+			"default": true
+		},
+		"comment": {
+			"type": "String",
+			"default": ""
+		}
+	},
+	"mixins": {
+		"TimeStamp" : true
+	},
+	"validations": [],
+	"relations": {
+		"Approver": {
+			"type": "belongsTo",
+			"model": "Customer",
+			"foreignKey": "_approverId"
+		}
+	},
+	"acls": [],
+	"methods": {}
+}

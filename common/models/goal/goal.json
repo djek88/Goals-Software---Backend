@@ -20,7 +20,7 @@
 		},
 		"description": {
 			"type": "String",
-			"required": true
+			"default": ""
 		},
 		"dueDate": {
 			"type": "Date",
@@ -45,10 +45,15 @@
 	"hidden": ["updatedAt"],
 	"validations": [],
 	"relations": {
-		"Approvers": {
-			"type": "referencesMany",
-			"model": "Customer",
-			"foreignKey": "_approverIds"
+		"Votes": {
+			"type": "embedsMany",
+			"model": "Vote",
+			"property": "votes",
+			"default": [],
+			"options": {
+				"validate": true,
+				"forceId": false
+			}
 		},
 		"Owner": {
 			"type": "belongsTo",
@@ -78,6 +83,15 @@
 			"property": "create",
 			"principalType": "ROLE",
 			"principalId": "$authenticated",
+			"permission": "ALLOW"
+		},
+		{
+			"property": [
+				"updateAttributes",
+				"deleteById"
+			],
+			"principalType": "ROLE",
+			"principalId": "$owner",
 			"permission": "ALLOW"
 		}
 	],

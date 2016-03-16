@@ -52,15 +52,19 @@
 		"public": false
 	},
 	"Social": {
-		"dataSource": "db",
+		"dataSource": "transient",
 		"public": false
 	},
 	"Balance": {
-		"dataSource": "db",
+		"dataSource": "transient",
 		"public": false
 	},
 	"SessionConf": {
-		"dataSource": "db",
+		"dataSource": "transient",
+		"public": false
+	},
+	"Vote": {
+		"dataSource": "transient",
 		"public": false
 	},
 	"Container": {

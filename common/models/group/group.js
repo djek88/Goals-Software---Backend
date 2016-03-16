@@ -685,7 +685,7 @@ module.exports = function(Group) {
 		next();
 	}
 
-	function excludePrivateGroups(ctx, modelInstance, next) {
+	function excludePrivateGroups(ctx, group, next) {
 		var senderId = ctx.req.accessToken.userId;
 
 		if (Array.isArray(ctx.result)) {
@@ -706,7 +706,7 @@ module.exports = function(Group) {
 		next();
 	}
 
-	function checkIsGroupMember(ctx, modelInstance, next) {
+	function checkIsGroupMember(ctx, group, next) {
 		var group = ctx.instance;
 		var senderId = ctx.req.accessToken.userId.toString();
 
@@ -715,7 +715,7 @@ module.exports = function(Group) {
 		}
 	}
 
-	function excludeFields(ctx, modelInstance, next) {
+	function excludeFields(ctx, group, next) {
 		var resData = ctx.result;
 
 		if (resData) {
@@ -780,14 +780,12 @@ module.exports = function(Group) {
 };
 
 module.exports.calculatedStartAtDate = calculatedStartAtDate;
+module.exports.isOwnerOrMember = isOwnerOrMember;
 
 function isOwnerOrMember(userId, group) {
-	var isOwner = group._ownerId.toString() === userId.toString();
-	var isMember = group._memberIds.some(function(id) {
+	return group._memberIds.concat(group._ownerId).some(function(id) {
 		return id.toString() === userId.toString();
 	});
-
-	return isOwner || isMember;
 }
 
 function currentNumberMembers(group) {
