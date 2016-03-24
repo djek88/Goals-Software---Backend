@@ -4,7 +4,7 @@
 			"../common/models/customer",
 			"../common/models/group",
 			"../common/models/goal",
-			"../common/models/container",
+			"../common/models/containers",
 			"../common/models/additional"
 		],
 		"mixins": [
@@ -41,7 +41,7 @@
 	},
 	"Session": {
 		"dataSource": "db",
-		"public": true
+		"public": false
 	},
 	"Goal": {
 		"dataSource": "db",
@@ -60,15 +60,19 @@
 		"public": false
 	},
 	"SessionConf": {
-		"dataSource": "transient",
+		"dataSource": "db",
 		"public": false
 	},
 	"Vote": {
 		"dataSource": "transient",
 		"public": false
 	},
-	"Container": {
-		"dataSource": "storage",
+	"AvatarsContainer": {
+		"dataSource": "avatarsStorage",
+		"public": true
+	},
+	"FilesContainer": {
+		"dataSource": "filesStorage",
 		"public": true
 	},
 	"Additional": {

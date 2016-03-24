@@ -9,6 +9,7 @@ module.exports = function(Customer) {
 	// Disable unnecessary methods
 	Customer.disableRemoteMethod('upsert', true);
 	Customer.disableRemoteMethod('create', true);
+	Customer.disableRemoteMethod('createChangeStream', true);
 	Customer.disableRemoteMethod('__get__accessTokens', false);
 	Customer.disableRemoteMethod('__create__accessTokens', false);
 	Customer.disableRemoteMethod('__delete__accessTokens', false);
@@ -39,10 +40,18 @@ module.exports = function(Customer) {
 		http: {path: '/base-info', verb: 'get'},
 		returns: {type: 'object', root: true}
 	});
+	// Login method for developing//////////////////////////////////////////////////////////////////////////////
+	Customer.remoteMethod('devLoginnnnnnnnnnnnnnnnnnnnnnnnn', {
+		accepts: [
+			{arg: 'credentials', type: 'object', required: true, http: {source: 'body'}},
+		],
+		returns: {arg: 'accessToken', type: 'object', root: true},
+		http: {verb: 'post'}
+	});
 
 	Customer.prototype.uploadAvatar = function(req, res, next) {
-		var Container = Customer.app.models.Container;
-		var customerId = this._id.toString();
+		var Container = Customer.app.models.AvatarsContainer;
+		var customerId = this._id;
 
 		Container.getContainers(function (err, containers) {
 			if (err) return next(err);
@@ -69,6 +78,10 @@ module.exports = function(Customer) {
 		});
 	};
 
+	Customer.devLoginnnnnnnnnnnnnnnnnnnnnnnnn = function(credentials, next) {//////////////////////////////////////////////
+		Customer.login(credentials, next);
+	};
+
 	// Update avatar field in model
 	Customer.afterRemote('prototype.uploadAvatar', setAvatarField);
 	// Login by FHQ sessionId
@@ -80,7 +93,7 @@ module.exports = function(Customer) {
 		var customer = ctx.instance;
 		var fileName = ctx.result.files.file[0].name;
 
-		customer.avatar = '/Containers/' + customer._id + '/download/' + fileName;
+		customer.avatar = '/AvatarsContainers/' + customer._id + '/download/' + fileName;
 		customer.save(function(err, result) {
 			if (err) return next(err);
 

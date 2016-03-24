@@ -14,10 +14,16 @@
 		"name": "db",
 		"connector": "mongodb"
 	},
-	"storage": {
-		"name": "storage",
+	"avatarsStorage": {
+		"name": "avatarsStorage",
 		"connector": "loopback-component-storage",
 		"provider": "filesystem",
-		"root": "./server/storage"
+		"root": "./server/storage/avatars"
+	},
+	"filesStorage": {
+		"name": "filesStorage",
+		"connector": "loopback-component-storage",
+		"provider": "filesystem",
+		"root": "./server/storage/files"
 	}
 }

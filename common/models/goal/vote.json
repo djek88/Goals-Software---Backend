@@ -1,6 +1,6 @@
 {
 	"name": "Vote",
-	"base": "PersistedModel",
+	"base": "TransientModel",
 	"strict": "throw",
 	"options": {
 		"validateUpsert": true
@@ -8,16 +8,18 @@
 	"properties": {
 		"approved": {
 			"type": "Boolean",
-			"default": true
+			"required": true
 		},
 		"comment": {
 			"type": "String",
 			"default": ""
+		},
+		"createdAt": {
+			"type": "Date",
+			"default": "now"
 		}
 	},
-	"mixins": {
-		"TimeStamp" : true
-	},
+	"mixins": {},
 	"validations": [],
 	"relations": {
 		"Approver": {

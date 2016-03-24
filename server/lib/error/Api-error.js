@@ -10,7 +10,6 @@ function ApiError(status, message) {
 
 	this.status = status;
 	this.message = message || http.STATUS_CODES[status] || 'Unknown';
-	console.log(this);
 }
 
 util.inherits(ApiError, Error);

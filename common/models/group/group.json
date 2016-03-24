@@ -53,6 +53,7 @@
 			"type": "embedsOne",
 			"model": "SessionConf",
 			"property": "sessionConf",
+			"default": {},
 			"options": {
 				"validate": true,
 				"forceId": false
@@ -130,7 +131,8 @@
 				"sendEmailToMember",
 				"inviteNewMembers",
 				"requestToJoin",
-				"provideExcuse"
+				"provideExcuse",
+				"memberGoals"
 			],
 			"principalType": "ROLE",
 			"principalId": "$authenticated",

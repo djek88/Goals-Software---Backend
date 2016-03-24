@@ -30,11 +30,15 @@
 			"type": "Number",
 			"default": 1
 		},
+		"comments": {
+			"type": "String",
+			"default": ""
+		},
 		"evidences": {
 			"type": ["String"],
 			"default": []
 		},
-		"comments": {
+		"feedbacks": {
 			"type": ["Object"],
 			"default": []
 		}
@@ -80,7 +84,11 @@
 			"permission": "ALLOW"
 		},
 		{
-			"property": "create",
+			"property": [
+				"create",
+				"__create__Votes",
+				"leaveFeedback"
+			],
 			"principalType": "ROLE",
 			"principalId": "$authenticated",
 			"permission": "ALLOW"
@@ -88,7 +96,9 @@
 		{
 			"property": [
 				"updateAttributes",
-				"deleteById"
+				"addComments",
+				"notifyGroupMembers",
+				"uploadEvidence"
 			],
 			"principalType": "ROLE",
 			"principalId": "$owner",

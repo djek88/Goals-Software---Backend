@@ -19,6 +19,8 @@ module.exports = function(Group) {
 
 	// Disable unnecessary methods
 	Group.disableRemoteMethod('upsert', true);
+	Group.disableRemoteMethod('exists', true);
+	Group.disableRemoteMethod('createChangeStream', true);
 	Group.disableRemoteMethod('__create__Members', false);
 	Group.disableRemoteMethod('__delete__Members', false);
 	Group.disableRemoteMethod('__updateById__Members', false);
@@ -147,6 +149,17 @@ module.exports = function(Group) {
 			{arg: 'excuseId', type: 'string', description: 'Excuse id', required: true}
 		]
 	});
+	// Return member goals
+	Group.remoteMethod('memberGoals', {
+		isStatic: false,
+		description: 'Return group members goals.',
+		http: {path: '/member-goals/:memberId', verb: 'get'},
+		accepts: [
+			{arg: 'req', type: 'object', 'http': {source: 'req'}},
+			{arg: 'memberId', type: 'string', description: 'Member id', required: true}
+		],
+		returns: {type: 'array', root: true}
+	});
 
 	Group.prototype.changeGroupOwner = function(ownerId, next) {
 		var Customer = Group.app.models.Customer;
@@ -158,9 +171,9 @@ module.exports = function(Group) {
 			if (id === ownerId) {
 				group._memberIds.splice(i, 1);
 				group._ownerId = id;
+
 				return group.save(function(err, freshGroup) {
 					if (err) return next(err);
-
 					next();
 
 					// Notify new owner and group members
@@ -176,7 +189,7 @@ module.exports = function(Group) {
 						mailer.notifyById(
 							freshGroup._memberIds,
 							'Change group owner',
-							'The owner of the "' + freshGroup.name + '" group changed to ' + newOwner.firstName + ' ' + owner.lastName
+							'The owner of the "' + freshGroup.name + '" group changed to ' + newOwner.firstName + ' ' + newOwner.lastName
 						);
 					});
 				});
@@ -477,7 +490,26 @@ module.exports = function(Group) {
 				excuse: excuse,
 				valid: true
 			};
-			session.updateAttributes({excuses: session.excuses}, next);
+
+			session.updateAttributes({excuses: session.excuses}, function(err, freshSess) {
+				if (err) return next(err);
+
+				next();
+
+				Group.app.models.Customer.findById(senderId, function(err, sender) {
+					if (err || !sender) return;
+
+					var ids = group._memberIds.concat(group._ownerId).filter(function(id) {
+						return id !== senderId;
+					});
+
+					mailer.notifyById(
+						ids,
+						'Member excuse, from ' + sender.firstName + ' ' + sender.lastName,
+						excuse
+					);
+				});
+			});
 		});
 	};
 
@@ -517,18 +549,24 @@ module.exports = function(Group) {
 		});
 	};
 
-	// Deny set manualy id field
-	Group.beforeRemote('create', delId);
-	Group.beforeRemote('prototype.updateAttributes', delId);
+	Group.prototype.memberGoals = function(req, memberId, next) {
+		var senderId = req.accessToken.userId;
+		var group = this;
+
+		if (!isOwnerOrMember(senderId, group)) return next(new ApiError(403));
+		if (!isOwnerOrMember(memberId, group)) return next(ApiError.incorrectParam('memberId'));
+
+		Group.app.models.Goal.find({
+			where: {and: [{_ownerId: memberId}, {_groupId: group._id}]}
+		}, next);
+	};
+
+	// Deny set manualy id, memberIds, nextSessionId, lastSessionId fields
+	Group.beforeRemote('create', excludeIdMemberIdsSessionsFields);
+	Group.beforeRemote('prototype.updateAttributes', excludeIdMemberIdsSessionsFields);
 	// Make sure _ownerId set properly
 	Group.beforeRemote('create', setOwnerId);
 	Group.beforeRemote('prototype.updateAttributes', setOwnerId);
-	// Deny add members to group during create or update group model
-	Group.beforeRemote('create', excludeMemberIdsField);
-	Group.beforeRemote('prototype.updateAttributes', excludeMemberIdsField);
-	// Exclude '_nextSessionId', _lastSessionId fields during create or update group model
-	Group.beforeRemote('create', excludeSessionsFields);
-	Group.beforeRemote('prototype.updateAttributes', excludeSessionsFields);
 	// Validate roundLength field
 	Group.beforeRemote('create', validateRoundLengthField);
 	Group.beforeRemote('prototype.updateAttributes', validateRoundLengthField);
@@ -539,6 +577,8 @@ module.exports = function(Group) {
 	Group.afterRemote('prototype.__update__SessionConf', updateNextSession);
 	// Delete next session after delete group
 	Group.afterRemote('deleteById', deleteNextSession);
+	// Delete related goals after delete group
+	Group.afterRemote('deleteById', deleteRelatedGoals);
 	// Validate maxMembers field
 	Group.beforeRemote('prototype.updateAttributes', validateMaxMembersField);
 	// Allow members to leave the group
@@ -548,7 +588,6 @@ module.exports = function(Group) {
 	Group.afterRemote('findOne', excludePrivateGroups);
 	Group.afterRemote('findById', excludePrivateGroups);
 	// Return private group only for owner and members
-	Group.beforeRemote('exists', checkIsGroupMember);
 	Group.beforeRemote('prototype.__get__LastSession', checkIsGroupMember);
 	Group.beforeRemote('prototype.__get__NextSession', checkIsGroupMember);
 	Group.beforeRemote('prototype.__count__Members', checkIsGroupMember);
@@ -561,24 +600,16 @@ module.exports = function(Group) {
 	Group.afterRemote('prototype.__get__Members', excludeFields);
 	Group.afterRemote('prototype.__findById__Members', excludeFields);
 
-	function delId(ctx, group, next) {
+	function excludeIdMemberIdsSessionsFields(ctx, group, next) {
 		delete ctx.req.body._id;
+		delete ctx.req.body._memberIds;
+		delete ctx.req.body._nextSessionId;
+		delete ctx.req.body._lastSessionId;
 		next();
 	}
 
 	function setOwnerId(ctx, group, next) {
 		ctx.req.body._ownerId = ctx.req.accessToken.userId;
-		next();
-	}
-
-	function excludeMemberIdsField(ctx, group, next) {
-		delete ctx.req.body._memberIds;
-		next();
-	}
-
-	function excludeSessionsFields(ctx, group, next) {
-		delete ctx.req.body._nextSessionId;
-		delete ctx.req.body._lastSessionId;
 		next();
 	}
 
@@ -654,7 +685,17 @@ module.exports = function(Group) {
 		var now = new Date(moment().utc().format()).getTime();
 
 		Session.destroyAll({
-			and: [{_groupId: groupId}, {startAt: {gt: now}}],
+			and: [{_groupId: groupId}, {startAt: {gt: now}}]
+		}, next);
+	}
+
+	function deleteRelatedGoals(ctx, group, next) {
+		var Goal = Group.app.models.Goal;
+		var groupId = ctx.args.id;
+		var now = new Date(moment().utc().format()).getTime();
+
+		Goal.destroyAll({
+			and: [{_groupId: groupId}, {dueDate: {gt: now}}]
 		}, next);
 	}
 
@@ -713,6 +754,8 @@ module.exports = function(Group) {
 		if(group.private && !isOwnerOrMember(senderId, group)) {
 			return next(new ApiError(403));
 		}
+
+		next();
 	}
 
 	function excludeFields(ctx, group, next) {
@@ -733,17 +776,6 @@ module.exports = function(Group) {
 		}
 
 		next();
-	}
-
-	function changeModelByWhiteList(resource) {
-		var WHITE_LIST_FIELDS = ['_id', 'firstName', 'lastName', 'timeZone', 'description', 'avatar', 'social'];
-		var destination = {};
-
-		WHITE_LIST_FIELDS.forEach(function(field) {
-			destination[field] = resource[field];
-		});
-
-		return destination;
 	}
 
 	function createSession(group, cb) {
@@ -781,6 +813,18 @@ module.exports = function(Group) {
 
 module.exports.calculatedStartAtDate = calculatedStartAtDate;
 module.exports.isOwnerOrMember = isOwnerOrMember;
+module.exports.changeModelByWhiteList = changeModelByWhiteList;
+
+function changeModelByWhiteList(resource) {
+	var WHITE_LIST_FIELDS = ['_id', 'firstName', 'lastName', 'timeZone', 'description', 'avatar', 'social'];
+	var destination = {};
+
+	WHITE_LIST_FIELDS.forEach(function(field) {
+		destination[field] = resource[field];
+	});
+
+	return destination;
+}
 
 function isOwnerOrMember(userId, group) {
 	return group._memberIds.concat(group._ownerId).some(function(id) {

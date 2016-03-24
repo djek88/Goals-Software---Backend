@@ -18,8 +18,8 @@
 		"lastUpdated": false,
 
 		"_id": {
-			"type": "ObjectId",
-			"generated": true,
+			"type": "String",
+			"generated": false,
 			"id": true
 		},
 		"firstName": {
@@ -28,7 +28,7 @@
 		},
 		"lastName": {
 			"type": "String",
-			"required": true
+			"default": ""
 		},
 		"fhqSessionId": {
 			"type": "String",
@@ -44,7 +44,7 @@
 		},
 		"avatar": {
 			"type": "String",
-			"default": "/Containers/default-avatar/download/male.png"
+			"default": "/AvatarsContainers/default-avatar/download/male.png"
 		}
 	},
 	"mixins": {
@@ -93,6 +93,12 @@
 			"property": "baseCustomerInfo",
 			"principalType": "ROLE",
 			"principalId": "$authenticated",
+			"permission": "ALLOW"
+		},
+		{
+			"property": "devLogin",
+			"principalType": "ROLE",
+			"principalId": "$everyone",
 			"permission": "ALLOW"
 		}
 	],

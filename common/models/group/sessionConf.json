@@ -1,6 +1,6 @@
 {
 	"name": "SessionConf",
-	"base": "PersistedModel",
+	"base": "TransientModel",
 	"strict": "throw",
 	"options": {
 		"validateUpsert": true
