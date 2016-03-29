@@ -2,4 +2,4 @@ node_modules
 server/storage/avatars/*
 server/storage/files/*
 !server/storage/avatars/default-avatar
-!server/storage/files/default-file
+!server/storage/files/default-folder
