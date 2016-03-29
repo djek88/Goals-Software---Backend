@@ -30,7 +30,8 @@ module.exports = function(Goal) {
 		accepts: [
 			{arg: 'req', type: 'object', 'http': {source: 'req'}},
 			{arg: 'feedback', type: 'string', description: 'Feedback', required: true}
-		]
+		],
+		returns: {type: 'object', root: true}
 	});
 	// Add comments
 	Goal.remoteMethod('addComments', {
@@ -130,14 +131,13 @@ module.exports = function(Goal) {
 	// Deny set manualy id, state, evidences, feedbacks, votes
 	Goal.beforeRemote('create', delIdStateEvidencesFeedbacksVotes);
 	Goal.beforeRemote('prototype.updateAttributes', delIdStateEvidencesFeedbacksVotes);
-	// Deny change dueDate for goal
-	Goal.beforeRemote('prototype.updateAttributes', delDueDate);
+	// Deny change dueDate and _groupId for goal
+	Goal.beforeRemote('prototype.updateAttributes', delDueDateGroupId);
 	// Make sure _ownerId set properly
 	Goal.beforeRemote('create', setOwnerId);
 	Goal.beforeRemote('prototype.updateAttributes', setOwnerId);
 	// Make sure _groupId set properly
 	Goal.beforeRemote('create', checkGroupId);
-	Goal.beforeRemote('prototype.updateAttributes', checkGroupId);
 	// Return only sender goals
 	Goal.afterRemote('find', onlyOwnGoals);
 	// Check is owner or group member
@@ -160,8 +160,9 @@ module.exports = function(Goal) {
 		next();
 	}
 
-	function delDueDate(ctx, goal, next) {
+	function delDueDateGroupId(ctx, goal, next) {
 		delete ctx.req.body.dueDate;
+		delete ctx.req.body._groupId;
 		next();
 	}
 

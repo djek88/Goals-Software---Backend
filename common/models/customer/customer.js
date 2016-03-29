@@ -79,7 +79,7 @@ module.exports = function(Customer) {
 	};
 
 	Customer.devLoginnnnnnnnnnnnnnnnnnnnnnnnn = function(credentials, next) {//////////////////////////////////////////////
-		Customer.login(credentials, next);
+		Customer.login(credentials, 'user', next);
 	};
 
 	// Update avatar field in model
