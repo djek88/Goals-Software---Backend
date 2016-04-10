@@ -1,5 +1,5 @@
 {
-	"goalStates": [1, 2, 3, 4, 5, 6],
+	"goalStates": [1, 2, 3, 4, 5],
 	"penaltyAmounts": [2, 5, 10, 15, 20, 30, 50, 75, 100, 200, 1000, 2500, 5000],
 	"sessionFrequencyTypes": {
 		"1": "Weekly",
@@ -75,5 +75,18 @@
 		"3": "Personal Development",
 		"4": "Health and Fithness",
 		"5": "Other"
+	},
+	"supportedEvidenceTypes": {
+		".jpg": "image/jpeg",
+		".gif": "image/gif",
+		".png": "image/png",
+		".pdf": "application/pdf",
+		".doc": "application/msword",
+		".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		".txt": "text/plain",
+		".mp3": "audio/mp3",
+		".mp4": "video/mp4",
+		".mov": "video/quicktime",
+		".zip": "application/zip"
 	}
 }

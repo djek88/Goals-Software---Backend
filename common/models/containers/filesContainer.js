@@ -10,6 +10,7 @@ module.exports = function(FilesContainer) {
 	FilesContainer.disableRemoteMethod('downloadStream', true);
 	FilesContainer.disableRemoteMethod('getFiles', true);
 	FilesContainer.disableRemoteMethod('getFile', true);
+	FilesContainer.disableRemoteMethod('removeFile', true);
 	FilesContainer.disableRemoteMethod('upload', true);
 
 	FilesContainer.beforeRemote('download', function(ctx, container, next) {
@@ -29,19 +30,6 @@ module.exports = function(FilesContainer) {
 
 				next();
 			});
-		});
-	});
-
-	FilesContainer.beforeRemote('removeFile', function(ctx, container, next) {
-		var senderId = ctx.req.accessToken.userId;
-		var goalId = ctx.req.params.container;
-
-		FilesContainer.app.models.Goal.findById(goalId, function(err, goal) {
-			if (err) return next(err);
-			if (!goal) return next(new ApiError(404, 'Goal not found!'));
-			if (goal._ownerId !== senderId) return next(new ApiError(403));
-
-			next();
 		});
 	});
 };

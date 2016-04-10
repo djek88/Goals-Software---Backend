@@ -13,8 +13,7 @@
 		},
 		{
 			"property": [
-				"download",
-				"removeFile"
+				"download"
 			],
 			"principalType": "ROLE",
 			"principalId": "$authenticated",

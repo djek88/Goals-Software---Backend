@@ -3,6 +3,7 @@ var async = require('async');
 var app = require('../server');
 
 module.exports = Socket;
+
 function Socket(server) {
 	var io = require('socket.io')(server);
 

@@ -160,6 +160,27 @@ module.exports = function(Group) {
 		],
 		returns: {type: 'array', root: true}
 	});
+	// Return related active goals
+	Group.remoteMethod('relatedActiveGoals', {
+		isStatic: false,
+		description: 'Return related active goals.',
+		http: {path: '/related-active-goals', verb: 'get'},
+		accepts: [
+			{arg: 'req', type: 'object', 'http': {source: 'req'}}
+		],
+		returns: {type: 'array', root: true}
+	});
+	// Manually shedule next session
+	Group.remoteMethod('manuallyScheduleSession', {
+		isStatic: false,
+		description: 'Manually shedule next group session.',
+		http: {path: '/manually-shedule-session', verb: 'post'},
+		accepts: [
+			{arg: 'req', type: 'object', 'http': {source: 'req'}},
+			{arg: 'startAt', type: 'number', description: 'Session due date (milliseconds since 1970)', required: true}
+		],
+		returns: {type: 'object', root: true}
+	});
 
 	Group.prototype.changeGroupOwner = function(ownerId, next) {
 		var Customer = Group.app.models.Customer;
@@ -561,6 +582,60 @@ module.exports = function(Group) {
 		}, next);
 	};
 
+	Group.prototype.relatedActiveGoals = function(req, next) {
+		var senderId = req.accessToken.userId;
+		var group = this;
+
+		if (!isOwnerOrMember(senderId, group)) return next(new ApiError(403));
+
+		Group.app.models.Goal.find({
+			where: {
+				_groupId: group._id,
+				state: {inq: [1, 2, 4]}
+			}
+		}, next);
+	};
+
+	Group.prototype.manuallyScheduleSession = function(req, startAt, next) {
+		var group = this;
+		var Session = Group.app.models.Session;
+		var minStartAt = Date.now() + (5 * 60 * 1000);
+
+		startAt = new Date(startAt || minStartAt);
+
+		if (startAt.toString() === 'Invalid Date' || startAt < minStartAt) {
+			return next(ApiError.incorrectParam('startAt'));
+		}
+
+		if (!group._nextSessionId) {
+			Session.create({startAt: startAt, _groupId: group._id}, updateGroup);
+		} else {
+			Session.findById(group._nextSessionId, function(err, session) {
+				if (err) return next(err);
+				if (!session) return next(new ApiError(404, 'Session not found.'));
+				if (session._facilitatorId) return next(new ApiError(403, 'During going session!'));
+
+				session.updateAttributes({startAt: startAt, excuses: {}}, updateGroup);
+			});
+		}
+
+		function updateGroup(err, freshSession) {
+			if (err) return next(err);
+
+			group.updateAttributes({_nextSessionId: freshSession._id}, function(err, freshGroup) {
+				if (err) return next(err);
+
+				next(null, freshSession);
+
+				mailer.notifyById(
+					group._memberIds,
+					'Sheduled mastermind session',
+					'The owner of the "' + freshGroup.name + '" group, had just sheduled next mastermind session date.'
+				);
+			});
+		}
+	};
+
 	// Deny set manualy id, memberIds, nextSessionId, lastSessionId fields
 	Group.beforeRemote('create', excludeIdMemberIdsSessionsFields);
 	Group.beforeRemote('prototype.updateAttributes', excludeIdMemberIdsSessionsFields);
@@ -583,6 +658,8 @@ module.exports = function(Group) {
 	Group.beforeRemote('prototype.updateAttributes', validateMaxMembersField);
 	// Allow members to leave the group
 	Group.beforeRemote('prototype.__unlink__Members', allowMembersLeaveGroup);
+	// Delete member's goals which related to group
+	Group.afterRemote('prototype.__unlink__Members', deleteGoalsRelatedGroup);
 	// Exclude private group(s) where user don't owner or member
 	Group.afterRemote('find', excludePrivateGroups);
 	Group.afterRemote('findOne', excludePrivateGroups);
@@ -633,6 +710,7 @@ module.exports = function(Group) {
 		} else {
 			ctx.req.body.sessionConf.roundLength = [round1, round2PartA, round2PartB, round3];
 		}
+
 		next();
 	}
 
@@ -671,6 +749,14 @@ module.exports = function(Group) {
 		// Delete session inst
 		else if (!groupInst.sessionConf.sheduled && groupInst._nextSessionId) {
 			async.series([
+				function(cb) {
+					Session.findById(groupInst._nextSessionId, function(err, session) {
+						if (err) return cb(err);
+						if (!session) return cb(new ApiError(404, 'Session not found.'));
+						if (session._facilitatorId) return cb(new ApiError(403, 'During going session!'));
+						cb();
+					});
+				},
 				Session.destroyById.bind(Session, groupInst._nextSessionId),
 				function(cb) {
 					groupInst.updateAttributes({_nextSessionId: null}, cb);
@@ -692,11 +778,8 @@ module.exports = function(Group) {
 	function deleteRelatedGoals(ctx, group, next) {
 		var Goal = Group.app.models.Goal;
 		var groupId = ctx.args.id;
-		var now = new Date(moment().utc().format()).getTime();
 
-		Goal.destroyAll({
-			and: [{_groupId: groupId}, {dueDate: {gt: now}}]
-		}, next);
+		Goal.destroyAll({ _groupId: groupId }, next);
 	}
 
 	function validateMaxMembersField(ctx, group, next) {
@@ -724,6 +807,15 @@ module.exports = function(Group) {
 		}
 
 		next();
+	}
+
+	function deleteGoalsRelatedGroup(ctx, group, next) {
+		var group = ctx.instance;
+		var delUserId = ctx.req.params.fk;
+
+		Group.app.models.Goal.destroyAll({
+			and: [{_ownerId: delUserId}, {_groupId: group._id}]
+		}, next);
 	}
 
 	function excludePrivateGroups(ctx, group, next) {
@@ -795,6 +887,8 @@ module.exports = function(Group) {
 	function updateSession(sessionId, group, cb) {
 		Group.app.models.Session.findById(group._nextSessionId, function(err, session) {
 			if (err) return cb(err);
+			if (!session) return cb(new ApiError(404, 'Session not found.'));
+			if (session._facilitatorId) return next(new ApiError(403, 'During going session!'));
 
 			var startAt = calculatedStartAtDate(
 				group.sessionConf.frequencyType,

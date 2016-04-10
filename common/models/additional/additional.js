@@ -35,6 +35,12 @@ module.exports = function(Additional) {
 		accepts: [],
 		returns: {type: 'object', root: true}
 	});
+	Additional.remoteMethod('evidenceSupportedTypes', {
+		description: 'Return evidences supported file types.',
+		http: {path: '/evidence-supported-types', verb: 'get'},
+		accepts: [],
+		returns: {type: 'object', root: true}
+	});
 
 	Additional.sessionFrequencyTypes = function(next) {
 		next(null, resources.sessionFrequencyTypes);
@@ -54,5 +60,9 @@ module.exports = function(Additional) {
 
 	Additional.sessionTimeTypes = function(next) {
 		next(null, resources.sessionTimeTypes);
+	};
+
+	Additional.evidenceSupportedTypes = function(next) {
+		next(null, resources.supportedEvidenceTypes);
 	};
 };

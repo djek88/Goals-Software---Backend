@@ -35,10 +35,14 @@
 			"default": ""
 		},
 		"evidences": {
-			"type": ["String"],
+			"type": ["Object"],
 			"default": []
 		},
 		"feedbacks": {
+			"type": ["Object"],
+			"default": []
+		},
+		"votes": {
 			"type": ["Object"],
 			"default": []
 		}
@@ -49,16 +53,6 @@
 	"hidden": ["updatedAt"],
 	"validations": [],
 	"relations": {
-		"Votes": {
-			"type": "embedsMany",
-			"model": "Vote",
-			"property": "votes",
-			"default": [],
-			"options": {
-				"validate": true,
-				"forceId": false
-			}
-		},
 		"Owner": {
 			"type": "belongsTo",
 			"model": "Customer",
@@ -87,7 +81,8 @@
 			"property": [
 				"create",
 				"__create__Votes",
-				"leaveFeedback"
+				"leaveFeedback",
+				"leaveVote"
 			],
 			"principalType": "ROLE",
 			"principalId": "$authenticated",
@@ -98,7 +93,8 @@
 				"updateAttributes",
 				"addComments",
 				"notifyGroupMembers",
-				"uploadEvidence"
+				"uploadEvidence",
+				"removeEvidence"
 			],
 			"principalType": "ROLE",
 			"principalId": "$owner",

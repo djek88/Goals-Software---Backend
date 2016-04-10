@@ -63,10 +63,6 @@
 		"dataSource": "db",
 		"public": false
 	},
-	"Vote": {
-		"dataSource": "transient",
-		"public": false
-	},
 	"AvatarsContainer": {
 		"dataSource": "avatarsStorage",
 		"public": true

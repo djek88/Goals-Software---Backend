@@ -118,7 +118,8 @@
 				"approveRequest",
 				"rejectRequest",
 				"activeExcuses",
-				"rejectExcuse"
+				"rejectExcuse",
+				"manuallyScheduleSession"
 			],
 			"principalType": "ROLE",
 			"principalId": "$owner",
@@ -132,7 +133,8 @@
 				"inviteNewMembers",
 				"requestToJoin",
 				"provideExcuse",
-				"memberGoals"
+				"memberGoals",
+				"relatedActiveGoals"
 			],
 			"principalType": "ROLE",
 			"principalId": "$authenticated",

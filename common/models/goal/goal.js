@@ -1,4 +1,4 @@
-var moment = require('moment');
+var async = require('async');
 var ApiError = require('../../../server/lib/error/Api-error');
 var mailer = require('../../../server/lib/mailer');
 var GOALSTATES = require('../additional/resources').goalStates;
@@ -8,19 +8,15 @@ var changeModelByWhiteList = require('../group/group').changeModelByWhiteList;
 module.exports = function(Goal) {
 	Goal.validatesPresenceOf('_ownerId', '_groupId');
 	Goal.validatesInclusionOf('state', {in: GOALSTATES});
-	Goal.validate('dueDate', function(err) { if (this.dueDate <= new Date()) err(); });
+	Goal.validate('dueDate', function(err) { 
+		if (this.state === 1 && new Date(this.dueDate) <= Date.now()) err();
+	});
 
 	// Disable unnecessary methods
 	Goal.disableRemoteMethod('upsert', true);
 	Goal.disableRemoteMethod('deleteById', true);
 	Goal.disableRemoteMethod('exists', true);
 	Goal.disableRemoteMethod('createChangeStream', true);
-	Goal.disableRemoteMethod('__delete__Votes', false);
-	Goal.disableRemoteMethod('__updateById__Votes', false);
-	Goal.disableRemoteMethod('__destroyById__Votes', false);
-	Goal.disableRemoteMethod('__findById__Votes', false);
-	Goal.disableRemoteMethod('__destroyById__Votes', false);
-	Goal.disableRemoteMethod('__count__Votes', false);
 
 	// Leave feedback
 	Goal.remoteMethod('leaveFeedback', {
@@ -32,15 +28,6 @@ module.exports = function(Goal) {
 			{arg: 'feedback', type: 'string', description: 'Feedback', required: true}
 		],
 		returns: {type: 'object', root: true}
-	});
-	// Add comments
-	Goal.remoteMethod('addComments', {
-		isStatic: false,
-		description: 'Add comments to explain what you have done to achieve the goal.',
-		http: {path: '/add-comments', verb: 'post'},
-		accepts: [
-			{arg: 'comments', type: 'string', description: 'Comments', required: true}
-		]
 	});
 	// Notify group members that goal was achieved
 	Goal.remoteMethod('notifyGroupMembers', {
@@ -56,6 +43,28 @@ module.exports = function(Goal) {
 		accepts: [
 			{arg: 'req', type: 'object', 'http': {source: 'req'}},
 			{arg: 'res', type: 'object', 'http': {source: 'res'}}
+		],
+		returns: {type: 'object', root: true}
+	});
+	// Remove evidence files
+	Goal.remoteMethod('removeEvidence', {
+		isStatic: false,
+		description: 'Remove goal evidence file.',
+		http: {path: '/remove-evidence', verb: 'post'},
+		accepts: [
+			{arg: 'fileName', type: 'string', description: 'File name', required: true}
+		],
+		returns: {type: 'object', root: true}
+	});
+	// Leave feedback
+	Goal.remoteMethod('leaveVote', {
+		isStatic: false,
+		description: 'Leave vote for goal.',
+		http: {path: '/leave-vote', verb: 'post'},
+		accepts: [
+			{arg: 'req', type: 'object', 'http': {source: 'req'}},
+			{arg: 'achieve', type: 'boolean', description: 'Goal is reached', required: true},
+			{arg: 'comment', type: 'string', description: 'Your comment'}
 		],
 		returns: {type: 'object', root: true}
 	});
@@ -78,54 +87,193 @@ module.exports = function(Goal) {
 		});
 	};
 
-	Goal.prototype.addComments = function(comments, next) {
-		var goal = this;
-
-		if (!comments) return next(ApiError.incorrectParam('comments'));
-
-		goal.updateAttributes({comments: comments}, next);
-	};
-
 	Goal.prototype.notifyGroupMembers = function(next) {
 		var goal = this;
 
-		if (!goal.evidences.length) {
-			return next(new ApiError(403, 'Goal evidence files don\'t presense'));
+		if (Date.now() >= new Date(goal.dueDate)) {
+			return next(new ApiError(403, 'Goal due date has been expired!'));
 		}
 
-		Goal.app.models.Group.findById(goal._groupId, function(err, group) {
+		goal.updateAttributes({state: 2}, function(err, freshGoal) {
 			if (err) return next(err);
-			if (!group) return next(new ApiError(404, 'Goal group not found!'));
 
-			var recipients = group._memberIds.concat(group._ownerId).filter(function(id) {
-				return id !== goal._ownerId;
+			Goal.app.models.Group.findById(freshGoal._groupId, function(err, group) {
+				if (err) return next(err);
+				if (!group) return next(new ApiError(404, 'Goal group not found!'));
+
+				var recipients = group._memberIds.concat(group._ownerId).filter(function(id) {
+					return id !== freshGoal._ownerId;
+				});
+
+				if (!recipients.length) return next(new ApiError(404, 'No one to notify!'));
+
+				mailer.notifyById(
+					recipients,
+					'Member goal has been achieved',
+					[
+						'You can review his evidences on the "app.themastermind.nz/group/' + freshGoal._groupId + '/goal-review/' + freshGoal._id + '" page,',
+						'and view all of his goals on the "app.themastermind.nz/group/' + freshGoal._groupId + '/member-goals/' + freshGoal._id + '".'
+					].join('\r'),
+					next
+				);
 			});
-
-			mailer.notifyById(
-				recipients,
-				'Member goal has been achieved',
-				'an email is sent to all other members of the group with a mobile friendly version of the ‘Goals Review Page 2’ and link to the ‘goals review page 1’ where members can decide if they think the user has met their objective or not.',
-				next
-			);
 		});
 	};
 
 	Goal.prototype.uploadEvidence = function(req, res, next) {
-		var Container = Customer.app.models.FilesContainer;
+		var Container = Goal.app.models.FilesContainer;
 		var goal = this;
+		var goalId = goal._id.toString();
 
 		Container.getContainers(function (err, containers) {
 			if (err) return next(err);
 
-			if (containers.some(function(c) { return c.name === goal._id; })) {
-				return Container.upload(req, res, { container: goal._id }, next);
+			if (containers.some(function(c) { return c.name === goalId; })) {
+				return uploadFile();
 			}
 
-			Container.createContainer({ name: goal._id }, function(err, c) {
+			Container.createContainer({ name: goalId }, function(err, c) {
 				if (err) return next(err);
-				Container.upload(req, res, { container: goal._id }, next);
+				uploadFile();
 			});
 		});
+
+		function uploadFile() {
+			var options = {
+				container: goalId,
+				getFilename: function(file) {
+					var fileName = file.name.split('.');
+					fileName.splice(fileName.length - 1, 0, Date.now());
+					return fileName.join('.');
+				},
+				allowedContentTypes: [
+					'application/zip',
+					'audio/mp3',
+					'application/msword',
+					'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+					'image/jpeg',
+					'image/png',
+					'video/quicktime',
+					'image/gif',
+					'application/pdf',
+					'video/mp4',
+					'text/plain'
+				],
+				//maxFileSize: can pass a function(file, req, res) or number
+				//acl: can pass a function(file, req, res)
+			};
+
+			Container.upload(req, res, options, updateGoal);
+		}
+
+		function updateGoal() {
+			if (arguments[0] instanceof Error) return next(arguments[0]);
+
+			var file = arguments[1].files.file[0];
+			file.createdAt = new Date();
+
+			goal.evidences.push(file);
+			goal.updateAttributes({evidences: goal.evidences}, next);
+		}
+	};
+
+	Goal.prototype.removeEvidence = function(fileName, next) {
+		var Container = Goal.app.models.FilesContainer;
+		var goal = this;
+
+		for (var i = Object.keys(goal.evidences).length - 1; i >= 0; i--) {
+			if (goal.evidences[i].name === fileName) {
+				goal.evidences.splice(i, 1);
+				break;
+			}
+		}
+
+		goal.updateAttributes({evidences: goal.evidences}, function(err, freshGoal) {
+			if (err) return next(err);
+
+			next(null, freshGoal);
+
+			Container.removeFile(goal._id.toString(), fileName);
+		});
+	};
+
+	Goal.prototype.leaveVote = function(req, achieve, comment, next) {
+		achieve = !!achieve;
+
+		var senderId = req.accessToken.userId;
+		var goal = this;
+
+		if (goal._ownerId === senderId) return next(new ApiError(403));
+		if (goal.state !== 2 && goal.state !== 4) {
+			return next(new ApiError(403));
+		}
+
+		async.series([
+			isHaveAcessForGoal.bind(null, senderId, goal),
+			createUpdateVote
+		], function(err, results) {
+			if (err) return next(err);
+
+			next(null, results[1]);
+
+			if (!achieve && comment) {
+				Goal.app.models.Customer.findById(senderId, notifyOwner);
+			}
+		});
+
+		function createUpdateVote(cb) {
+			var vote = {
+				approved: achieve,
+				_approverId: senderId,
+				comment: !achieve && comment ? comment : '',
+				createdAt: new Date()
+			};
+
+			var isHaveVote = goal.votes.some(function(v) { 
+				return v._approverId === senderId
+			});
+
+			if (!isHaveVote) {
+				goal.votes.push(vote);
+			} else {
+				for (var i = goal.votes.length - 1; i >= 0; i--) {
+					if (goal.votes[i]._approverId === senderId) {
+						goal.votes[i] = vote;
+						break;
+					}
+				}
+			}
+
+			var isHaveRejectedVote = goal.votes.some(function(v) {
+				return v.approved === false
+			});
+
+			if (goal.state === 4 && !isHaveRejectedVote) {
+				goal.state = 2;
+			} else if (goal.state === 2 && !achieve) {
+				goal.state = 4;
+			}
+
+			goal.updateAttributes({
+				votes: goal.votes,
+				state: goal.state
+			}, cb);
+		}
+
+		function notifyOwner(err, sender) {
+			if (err || !sender) return;
+
+			mailer.notifyById(
+				goal._ownerId,
+				'Goal evidences was rejected',
+				[
+					sender.firstName + ' ' + sender.lastName + ', was rejected your goal evidence, for this goal:',
+					'app.themastermind.nz/group/' + goal._groupId + '/upload-goal-evidence/' + goal._id,
+					'\rHis comment:',
+					comment
+				].join('\r')
+			);
+		}
 	};
 
 	// Deny set manualy id, state, evidences, feedbacks, votes
@@ -138,6 +286,8 @@ module.exports = function(Goal) {
 	Goal.beforeRemote('prototype.updateAttributes', setOwnerId);
 	// Make sure _groupId set properly
 	Goal.beforeRemote('create', checkGroupId);
+	// Deny change goal when due date reached
+	Goal.beforeRemote('prototype.updateAttributes', denyIfDueDateReached);
 	// Return only sender goals
 	Goal.afterRemote('find', onlyOwnGoals);
 	// Check is owner or group member
@@ -145,9 +295,6 @@ module.exports = function(Goal) {
 	Goal.afterRemote('findOne', checkIsOwnerOrGroupMember.bind(null, false));
 	Goal.beforeRemote('prototype.__get__Group', checkIsOwnerOrGroupMember.bind(null, true));
 	Goal.beforeRemote('prototype.__get__Owner', checkIsOwnerOrGroupMember.bind(null, true));
-	Goal.beforeRemote('prototype.__get__Votes', checkIsOwnerOrGroupMember.bind(null, true));
-	// Check permision for new vote, set properly _approverId
-	Goal.beforeRemote('prototype.__create__Votes', properlyCreateVote);
 	// Exclude protected fields from responce
 	Goal.afterRemote('prototype.__get__Owner', excludeFields);
 
@@ -179,8 +326,16 @@ module.exports = function(Goal) {
 			if (!group) return next(ApiError.incorrectParam('_groupId'));
 			if (isOwnerOrMember(ctx.req.accessToken.userId, group)) return next();
 
-			next(new ApiError(403, 'You are not member in this group'));
+			next(new ApiError(403, 'You are not member in this group!'));
 		});
+	}
+
+	function denyIfDueDateReached(ctx, goal, next) {
+		if (Date.now() >= new Date(ctx.instance.dueDate)) {
+			return next(new ApiError(403, 'Goal due date has been expired!'));
+		}
+
+		next();
 	}
 
 	function onlyOwnGoals(ctx, goal, next) {
@@ -204,30 +359,6 @@ module.exports = function(Goal) {
 		if (goal) return isHaveAcessForGoal(senderId, goal, next);
 
 		next();
-	}
-
-	function properlyCreateVote(ctx, goal, next) {
-		var senderId = ctx.req.accessToken.userId;
-		var goal = ctx.instance;
-
-		if (moment() >= moment(goal.dueDate)) return next(new ApiError(403, 'Goal expired!'));
-		if (goal._ownerId === senderId) return next(new ApiError(403));
-
-		Goal.app.models.Group.findById(goal._groupId, function(err, group) {
-			if (err) return next(err);
-			if (!group || !isOwnerOrMember(senderId, group)) return next(new ApiError(403));
-
-			for (var i = goal.votes.length - 1; i >= 0; i--) {
-				if (goal.votes[i]._approverId === senderId) {
-					return next(new ApiError(403, 'You have already voted!'));
-				}
-			}
-
-			ctx.args.data._approverId = senderId;
-			ctx.args.data.createdAt = new Date();
-
-			next();
-		});
 	}
 
 	function excludeFields(ctx, group, next) {
