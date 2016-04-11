@@ -5,7 +5,7 @@ var app = require('../server');
 module.exports = Socket;
 
 function Socket(server) {
-	var io = require('socket.io')(server);
+	var io = require('socket.io')(server, {path: '/sockets'});
 
 	var startNsp = require('./start-session-nsp')(io);
 	var goesNsp = require('./goes-session-nsp')(io);
