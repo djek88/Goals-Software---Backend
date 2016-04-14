@@ -78,7 +78,7 @@ module.exports = function(Customer) {
 		});
 	};
 
-	Customer.devLoginnnnnnnnnnnnnnnnnnnnnnnnn = function(credentials, next) {//////////////////////////////////////////////
+	Customer.devLoginnnnnnnnnnnnnnnnnnnnnnnnn = function(credentials, next) {
 		Customer.login(credentials, 'user', next);
 	};
 
@@ -170,6 +170,8 @@ module.exports = function(Customer) {
 	function delProperties(ctx, customer, next) {
 		delete ctx.req.body._id;
 		delete ctx.req.body._fhqSessionId;
+		delete ctx.req.body.email;
+		delete ctx.req.body.password;
 		delete ctx.req.body.avatar;
 		next();
 	}
