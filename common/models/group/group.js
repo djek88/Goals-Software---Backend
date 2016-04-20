@@ -1,5 +1,5 @@
 var loopback = require('loopback');
-var moment = require('moment');
+var moment = require('moment-timezone');
 var async = require('async');
 var ApiError = require('../../../server/lib/error/Api-error');
 var mailer = require('../../../server/lib/mailer');

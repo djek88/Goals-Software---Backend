@@ -57,14 +57,31 @@ module.exports = function(Customer) {
 			if (err) return next(err);
 
 			if (containers.some(function(c) { return c.name === customerId; })) {
-				return Container.upload(req, res, { container: customerId }, next);
+				Container.destroyContainer(customerId, createContainerSaveFile);
+			} else {
+				createContainerSaveFile(null);
 			}
+		});
+
+		function createContainerSaveFile(err) {
+			if (err) return next(err);
 
 			Container.createContainer({ name: customerId }, function(err, c) {
 				if (err) return next(err);
-				Container.upload(req, res, { container: customerId }, next);
+
+				var options = {
+					container: customerId,
+					allowedContentTypes: function(file) {
+						// if file type incorect return array with non existent mime types
+						if (!file.type.includes('image/')) return ['image/*'];
+					}
+					//maxFileSize: can pass a function(file, req, res) or number
+					//acl: can pass a function(file, req, res)
+				};
+
+				Container.upload(req, res, options, next);
 			});
-		});
+		}
 	};
 
 	Customer.prototype.baseCustomerInfo = function(next) {

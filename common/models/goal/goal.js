@@ -2,6 +2,7 @@ var async = require('async');
 var ApiError = require('../../../server/lib/error/Api-error');
 var mailer = require('../../../server/lib/mailer');
 var GOALSTATES = require('../additional/resources').goalStates;
+var SUPPORTEDEVIDENCETYPES = require('../additional/resources').supportedEvidenceTypes;
 var isOwnerOrMember = require('../group/group').isOwnerOrMember;
 var changeModelByWhiteList = require('../group/group').changeModelByWhiteList;
 
@@ -139,6 +140,11 @@ module.exports = function(Goal) {
 		});
 
 		function uploadFile() {
+			var supportTypes = [];
+			for(var key in SUPPORTEDEVIDENCETYPES) {
+				supportTypes.push(SUPPORTEDEVIDENCETYPES[key]);
+			}
+
 			var options = {
 				container: goalId,
 				getFilename: function(file) {
@@ -146,19 +152,7 @@ module.exports = function(Goal) {
 					fileName.splice(fileName.length - 1, 0, Date.now());
 					return fileName.join('.');
 				},
-				allowedContentTypes: [
-					'application/zip',
-					'audio/mp3',
-					'application/msword',
-					'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-					'image/jpeg',
-					'image/png',
-					'video/quicktime',
-					'image/gif',
-					'application/pdf',
-					'video/mp4',
-					'text/plain'
-				],
+				allowedContentTypes: supportTypes,
 				//maxFileSize: can pass a function(file, req, res) or number
 				//acl: can pass a function(file, req, res)
 			};
