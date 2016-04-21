@@ -1,6 +1,6 @@
 {
 	"goalStates": [1, 2, 3, 4, 5],
-	"penaltyAmounts": [2, 5, 10, 15, 20, 30, 50, 75, 100, 200, 1000, 2500, 5000],
+	"penaltyAmounts": [0, 2, 5, 10, 15, 20, 30, 50, 75, 100, 200, 1000, 2500, 5000],
 	"sessionFrequencyTypes": {
 		"1": "Weekly",
 		"2": "First week",
