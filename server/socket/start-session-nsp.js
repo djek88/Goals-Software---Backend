@@ -39,10 +39,9 @@ function onJoin(roomName, callback) {
 			group.NextSession.getAsync(cb);
 		}
 	], function(err, session) {
-		if (err || !session || session._facilitatorId ||
-			session._participantIds.length) {
-			return callback(new Error('Forbidden'));
-		}
+		if (err || !session) return callback('Something went wrong.');
+		if (session._facilitatorId || 
+			session._participantIds.length) return callback('Session already going!');
 
 		socket.join(roomName);
 		socket.broadcast.to(roomName).emit('user:joined', userId);
@@ -50,24 +49,24 @@ function onJoin(roomName, callback) {
 	});
 }
 
-function sessionStart(roomName) {
+function sessionStart(roomName, callback) {
 	var socket = this;
 	var Group = app.models.Group;
 	var onlineUserIds = shared.onlineIdsInRoom(socket.nsp, roomName);
 	var isJoinedToRoom = onlineUserIds.indexOf(socket.user._id.toString()) >= 0;
 
-	if (!isJoinedToRoom || onlineUserIds.length < 2) return;
+	if (!isJoinedToRoom) return callback('You are not joined to room!');
+	if (onlineUserIds.length < 2) return callback('You must have two or more members online to start the session!');
 
 	async.waterfall([
 		Group.findById.bind(Group, roomName, {include: 'NextSession'}),
 		function(group, cb) {
-			if (!group) return cb(true);
+			if (!group) return cb(new Error('Group not found!'));
 
 			group.NextSession.getAsync(function(err, session) {
-				if (err || session._facilitatorId ||
-					Date.now() < new Date(session.startAt)) {
-					return cb(true);
-				}
+				if (err) return cb(err);
+				if (session._facilitatorId) return cb(new Error('The session is already in progress!'));
+				if (Date.now() < new Date(session.startAt)) return cb(new Error('Session start time is not reached!'));
 
 				// Set facilitator, participantIds
 				session.updateAttributes({
@@ -77,7 +76,7 @@ function sessionStart(roomName) {
 			});
 		}
 	], function(err, session) {
-		if (err) return;
-		socket.nsp.to(roomName).emit('startSessionRoom:redirect', session._groupId);
+		if (err) return callback(err.message);
+		callback(null, session._groupId);
 	});
 }
