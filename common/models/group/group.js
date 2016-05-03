@@ -515,7 +515,7 @@ module.exports = function(Group) {
 			session.updateAttributes({excuses: session.excuses}, function(err, freshSess) {
 				if (err) return next(err);
 
-				next();
+				next(null, freshSess);
 
 				Group.app.models.Customer.findById(senderId, function(err, sender) {
 					if (err || !sender) return;

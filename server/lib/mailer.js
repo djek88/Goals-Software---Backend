@@ -2,12 +2,12 @@ var nodemailer = require('nodemailer');
 var app = require('../server');
 
 var smtpConfig = {
-	host: 'smtp.gmail.com',
+	host: 'smtp.yandex.ru',
 	port: 465,
 	secure: true,
 	auth: {
-		user: 'mastermindservise@gmail.com',
-		pass: 'l3df6aL1Jlk375asdf7'
+		user: 'admin@themastermind.nz',
+		pass: 'lkasf23l0ads32xxga'
 	}
 };
 var mailerTransport = nodemailer.createTransport(smtpConfig);
@@ -21,7 +21,7 @@ function notifyByEmail(email, subject, text, cb) {
 	var emails = Array.isArray(email) ? email : [email];
 
 	mailerTransport.sendMail({
-		from: 'Mastermind',
+		from: 'admin@themastermind.nz',
 		to: emails.join(', '),
 		subject: subject,
 		text: text
@@ -40,7 +40,7 @@ function notifyById(customerId, subject, text, cb) {
 		var recipients = customers.map(function(m) {return m.email;});
 
 		mailerTransport.sendMail({
-			from: 'Mastermind',
+			from: 'admin@themastermind.nz',
 			to: recipients.join(', '),
 			subject: subject,
 			text: text
