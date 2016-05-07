@@ -4,7 +4,7 @@ var mailer = require('../lib/mailer');
 
 module.exports = function(app) {
 	var job = new CronJob({
-		cronTime: '00 20 * * * *',
+		cronTime: '00 05 * * * *',
 		onTick: onTick,
 		start: true
 	});
