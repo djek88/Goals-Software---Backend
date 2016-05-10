@@ -76,7 +76,7 @@ module.exports = function(Goal) {
 
 		if (!feedback) return next(ApiError.incorrectParam('feedback'));
 
-		isHaveAcessForGoal(senderId, goal, function(err) {
+		isHaveAcessToGoal(senderId, goal, function(err) {
 			if (err) return next(err);
 
 			goal.feedbacks.push({
@@ -84,7 +84,36 @@ module.exports = function(Goal) {
 				feedback: feedback
 			});
 
-			goal.updateAttributes({feedbacks: goal.feedbacks}, next);
+			goal.updateAttributes({feedbacks: goal.feedbacks}, function(err, freshGoal) {
+				if (err) return next(err);
+
+				next(null, freshGoal);
+
+				Goal.app.models.Customer.find({
+					where: {_id: {inq: [senderId, freshGoal._ownerId]}}
+				}, function(err, members) {
+					if (err || members.length !== 2) return;
+
+					var owner = members.filter(function(m) { return m._id === freshGoal._ownerId })[0];
+					var sender = members.filter(function(m) { return m._id === senderId })[0];
+
+					mailer.notifyByEmail(
+						owner.email,
+						sender.firstName + ' just left feedback on your goal',
+						[
+							'Hi ' + owner.firstName,
+
+							sender.firstName + ' has just left feedback on your goal. The said:',
+
+							feedback,
+
+							'To read it online or respond click the link below:',
+
+							'app.themastermind.nz/group/' + freshGoal._groupId + '/upload-goal-evidence/' + freshGoal._id
+						].join('\r\r')
+					);
+				});
+			});
 		});
 	};
 
@@ -101,22 +130,39 @@ module.exports = function(Goal) {
 			Goal.app.models.Group.findById(freshGoal._groupId, function(err, group) {
 				if (err) return next(err);
 				if (!group) return next(new ApiError(404, 'Goal group not found!'));
+				// if group don't have any members exept goal owner
+				if (group._ownerId === freshGoal._ownerId && !group._memberIds.length) {
+					return next(new ApiError(404, 'Changes saved success, but no one to notify!'));
+				}
 
-				var recipients = group._memberIds.concat(group._ownerId).filter(function(id) {
-					return id !== freshGoal._ownerId;
+				Goal.app.models.Customer.find({
+					where: {_id: {inq: group._memberIds.concat(group._ownerId)}}
+				}, function(err, customers) {
+					if (err) return next(err);
+					if (!customers.length) return next(new ApiError(404, 'Customers not found!'));
+
+					var goalOwner = customers.filter(function(m) {return m._id === freshGoal._ownerId;})[0];
+					var recipients = customers.filter(function(m) { return m._id !== freshGoal._ownerId;});
+
+					async.each(recipients, function(recipient, callback) {
+						mailer.notifyByEmail(
+							recipient.email,
+							goalOwner.firstName + ' has completed his goal (please review)',
+							[
+								'Hi ' + recipient.firstName + '\r\r',
+								goalOwner.firstName + ' ' + goalOwner.lastName + ' has marked their goal as completed. ',
+								'Please click on the link below to review and accept or reject their goal as complete:\r\r',
+
+								'app.themastermind.nz/group/' + freshGoal._groupId + '/goal-review/' + freshGoal._id + '\r\r',
+
+								'You can also check out the status of all ' + goalOwner.firstName + 's goals at:\r\r',
+
+								'app.themastermind.nz/group/' + freshGoal._groupId + '/member-goals/' + freshGoal._ownerId
+							].join(''),
+							callback
+						);
+					}, next);
 				});
-
-				if (!recipients.length) return next(new ApiError(404, 'No one to notify!'));
-
-				mailer.notifyById(
-					recipients,
-					'Member goal has been achieved',
-					[
-						'You can review his evidences on the "app.themastermind.nz/group/' + freshGoal._groupId + '/goal-review/' + freshGoal._id + '" page,',
-						'and view all of his goals on the "app.themastermind.nz/group/' + freshGoal._groupId + '/member-goals/' + freshGoal._id + '".'
-					].join('\r'),
-					next
-				);
 			});
 		});
 	};
@@ -198,21 +244,21 @@ module.exports = function(Goal) {
 		var goal = this;
 
 		if (goal._ownerId === senderId) return next(new ApiError(403));
-		if (goal.state !== 2 && goal.state !== 4) {
-			return next(new ApiError(403));
-		}
+		if (goal.state !== 2 && goal.state !== 4) return next(new ApiError(403));
 
 		async.series([
-			isHaveAcessForGoal.bind(null, senderId, goal),
+			isHaveAcessToGoal.bind(null, senderId, goal),
 			createUpdateVote
 		], function(err, results) {
 			if (err) return next(err);
 
-			next(null, results[1]);
+			var freshGoal = results[1];
 
-			if (!achieve && comment) {
-				Goal.app.models.Customer.findById(senderId, notifyOwner);
-			}
+			next(null, freshGoal);
+
+			Goal.app.models.Customer.find({
+				where: {_id: {inq: [senderId, freshGoal._ownerId]}}
+			}, notifyOwner);
 		});
 
 		function createUpdateVote(cb) {
@@ -223,7 +269,7 @@ module.exports = function(Goal) {
 				createdAt: new Date()
 			};
 
-			var isHaveVote = goal.votes.some(function(v) { 
+			var isHaveVote = goal.votes.some(function(v) {
 				return v._approverId === senderId
 			});
 
@@ -254,18 +300,24 @@ module.exports = function(Goal) {
 			}, cb);
 		}
 
-		function notifyOwner(err, sender) {
-			if (err || !sender) return;
+		function notifyOwner(err, members) {
+			if (err || members.length !== 2) return;
 
-			mailer.notifyById(
-				goal._ownerId,
-				'Goal evidences was rejected',
+			var sender = members.filter(function(m) {return m._id === senderId})[0];
+			var owner = members.filter(function(m) {return m._id !== senderId})[0];
+
+			mailer.notifyByEmail(
+				owner.email,
+				'Goal evidences was ' + (achieve ? 'approve' : 'rejected'),
 				[
-					sender.firstName + ' ' + sender.lastName + ', was rejected your goal evidence, for this goal:',
+					'Hi ' + owner.firstName,
+
+					sender.firstName + ' ' + sender.lastName + ', was ' + (achieve ? 'approve' : 'rejected') + ' your goal evidence, for this goal:',
+
 					'app.themastermind.nz/group/' + goal._groupId + '/upload-goal-evidence/' + goal._id,
-					'\rHis comment:',
-					comment
-				].join('\r')
+
+					comment ? 'His comment:\r\r' + comment : ''
+				].join('\r\r')
 			);
 		}
 	};
@@ -349,8 +401,8 @@ module.exports = function(Goal) {
 	function checkIsOwnerOrGroupMember(isProtoMethod, ctx, goal, next) {
 		var senderId = ctx.req.accessToken.userId;
 
-		if (isProtoMethod) return isHaveAcessForGoal(senderId, ctx.instance, next);
-		if (goal) return isHaveAcessForGoal(senderId, goal, next);
+		if (isProtoMethod) return isHaveAcessToGoal(senderId, ctx.instance, next);
+		if (goal) return isHaveAcessToGoal(senderId, goal, next);
 
 		next();
 	}
@@ -360,7 +412,7 @@ module.exports = function(Goal) {
 		next();
 	}
 
-	function isHaveAcessForGoal(userId, goal, cb) {
+	function isHaveAcessToGoal(userId, goal, cb) {
 		Goal.app.models.Group.findById(goal._groupId, function(err, group) {
 			if (err) return cb(err);
 

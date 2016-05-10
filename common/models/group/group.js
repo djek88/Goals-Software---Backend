@@ -295,12 +295,17 @@ module.exports = function(Group) {
 			return next(new ApiError(403, 'Member can\'t invite'));
 		}
 
-		mailer.notifyByEmail(
-			emails,
-			'Invitation to join a group.',
-			request,
-			next
-		);
+		Group.app.models.Customer.findById(senderId, function(err, sender) {
+			if (err) return next(err);
+			if (!sender) return next(new ApiError(404, 'Sender not found!'));
+
+			mailer.notifyByEmail(
+				emails,
+				sender.firstName + ' has invited to join a mastermind group',
+				request,
+				next
+			);
+		});
 	};
 
 	Group.prototype.requestToJoin = function(req, request, next) {
@@ -335,8 +340,20 @@ module.exports = function(Group) {
 			function(customer, cb) {
 				mailer.notifyByEmail(
 					customer.email,
-					'Request to join the group.',
-					request,
+					'Request to join your mastermind group',
+					[
+						'Hi ' + customer.firstName,
+
+						'You have a request to join your mastermind group.',
+
+						'To accept to reject the request click the link below:',
+
+						'app.themastermind.nz/group/' + group._id + '/join-requests',
+
+						'Their application message is as follows:',
+
+						request
+					].join('\r\r'),
 					cb
 				);
 			}
@@ -415,8 +432,16 @@ module.exports = function(Group) {
 				function(callback) {
 					mailer.notifyByEmail(
 						requestOwner.email,
-						'Your request to join the group.',
-						'You request to join ' + group.name + ' group was accepted.\n\nThanks',
+						group.name + ' has accepted your request',
+						[
+							'Hi ' + requestOwner.firstName + '\r\r',
+
+							'You request to join the group' + group.name + 'has been accepted.\r\r',
+
+							'To login to your account click on the link below:\r\r',
+
+							'www.themastermind.nz/members'
+						].join(''),
 						callback
 					);
 				}
@@ -471,8 +496,16 @@ module.exports = function(Group) {
 
 					mailer.notifyByEmail(
 						customer.email,
-						'Your request to join the group.',
-						'You request to join ' + group.name + ' group was rejected.\n\nThanks',
+						group.name + ' has declined your request',
+						[
+							'Hi ' + customer.firstName + '\r\r',
+
+							'You request to join the group' + group.name + 'has been declined.\r\r',
+
+							'To login to your account click on the link below:\r\r',
+
+							'www.themastermind.nz/members'
+						].join(''),
 						cb
 					);
 				});
@@ -512,23 +545,51 @@ module.exports = function(Group) {
 				valid: true
 			};
 
-			session.updateAttributes({excuses: session.excuses}, function(err, freshSess) {
+			session.updateAttributes({ excuses: session.excuses }, function(err, freshSess) {
 				if (err) return next(err);
 
 				next(null, freshSess);
 
-				Group.app.models.Customer.findById(senderId, function(err, sender) {
-					if (err || !sender) return;
+				Group.app.models.Customer.find({
+					where: {_id: {inq: group._memberIds.concat(group._ownerId)}}
+				}, function(err, members) {
+					if (err || !members.length) return;
 
-					var ids = group._memberIds.concat(group._ownerId).filter(function(id) {
-						return id !== senderId;
-					});
+					var sender = members.filter(function(m) {return m._id === senderId;})[0];
+					var groupOwner = members.filter(function(m) {return m._id === group._ownerId;})[0];
+					var recipients = members.filter(function(m) {return m._id !== senderId && m._id !== group._ownerId;});
 
-					mailer.notifyById(
-						ids,
-						'Member excuse, from ' + sender.firstName + ' ' + sender.lastName,
-						excuse
+					var subject = sender.firstName + ' ' + sender.lastName + ' has sent an excuse';
+
+					mailer.notifyByEmail(
+						groupOwner.email,
+						subject,
+						[
+							'Hi ' + groupOwner.firstName,
+
+							sender.firstName + ' ' + sender.lastName + 'has sent an excuse to not join the next session. His reason is:',
+
+							excuse,
+
+							'To accept or decline the excuse click the link below:',
+
+							'app.themastermind.nz/group/' + group._id + '/next-session-excuses'
+						].join('\r\r')
 					);
+
+					recipients.forEach(function(recipient) {
+						mailer.notifyByEmail(
+							recipient.email,
+							subject,
+							[
+								'Hi ' + recipient.firstName,
+
+								sender.firstName + ' ' + sender.lastName + 'has sent an excuse to not join the next session. His reason is:',
+
+								excuse
+							].join('\r\r')
+						);
+					});
 				});
 			});
 		});
@@ -627,11 +688,30 @@ module.exports = function(Group) {
 
 				next(null, freshSession);
 
-				mailer.notifyById(
-					group._memberIds,
-					'Sheduled mastermind session',
-					'The owner of the "' + freshGroup.name + '" group, had just sheduled next mastermind session date.'
-				);
+				Group.app.models.Customer.find({
+					where: {_id: {inq: group._memberIds}}
+				}, function(err, members) {
+					if (err) return;
+					if (!members.length) return;
+
+					members.forEach(function(member) {
+						mailer.notifyByEmail(
+							member.email,
+							'Scheduled mastermind session',
+							[
+								'Hi ' + member.firstName + '\r\r',
+
+								'The owner of the "' + freshGroup.name + '" group,',
+								' had just sheduled the next mastermind session on:\r',
+								freshSession.startAt + '\r\r',
+
+								'To join click the link below and login:\r\r',
+
+								'app.themastermind.nz/session/' + freshGroup._id + '/start'
+							].join('')
+						);
+					});
+				});
 			});
 		}
 	};
