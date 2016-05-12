@@ -77,6 +77,8 @@ function sessionStart(roomName, callback) {
 		}
 	], function(err, session) {
 		if (err) return callback(err.message);
-		callback(null, session._groupId);
+
+		callback();
+		socket.nsp.to(roomName).emit('startSessionRoom:redirect', session._groupId);
 	});
 }

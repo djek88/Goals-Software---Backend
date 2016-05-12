@@ -221,27 +221,27 @@ module.exports = function(Group) {
 	};
 
 	Group.prototype.sendEmailToGroup = function(req, message, next) {
-		var senderId = req.accessToken.userId.toString();
+		var senderId = req.accessToken.userId;
 		var group = this;
 
 		if (!isOwnerOrMember(senderId, group)) return next(new ApiError(403));
 		if (!message) return next(ApiError.incorrectParam('message'));
-		if (!group._memberIds.length) return next(new ApiError(404, 'Members not found'));
 
-		Group.app.models.Customer.findById(senderId, function(err, sender) {
+		Group.app.models.Customer.find({
+			where: {_id: {inq: group._memberIds.concat(group._ownerId)}}
+		}, function(err, members) {
 			if (err) return next(err);
+			if (!members.length) return next(new ApiError(404, 'Members not found'));
 
-			var recipients = group._memberIds
-				.concat(group._ownerId)
-				.filter(function(id) {
-					return id.toString() !== senderId;
-				});
+			next();
 
-			mailer.notifyById(
-				recipients,
+			var sender = members.filter(function(m) {return m._id === senderId;})[0];
+			var recipientsEmail = members.map(function(m) {return m.email;});
+
+			mailer.notifyByEmail(
+				recipientsEmail,
 				'Message from ' + sender.firstName + ' ' + sender.lastName,
-				message,
-				next
+				message
 			);
 		});
 	};

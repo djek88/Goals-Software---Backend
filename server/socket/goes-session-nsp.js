@@ -106,6 +106,8 @@ function skipRoundWhenUserLeave(reason) {
 			var userNumWhoseTurn = room.state[2] ? room.state[2] : room.state[1];
 
 			if (userNumWhoLeave === userNumWhoseTurn || remainsOneUser) {
+				// need delay for apply to cur socket method "onclose"
+				// which change socket status to disconnected
 				setTimeout(room.timer.finish, 1000);
 			}
 		}
@@ -133,6 +135,7 @@ function turnToNextState(nsp, roomName, session, group) {
 		}
 
 		return shared.updateGroupAndSessAfterFinish(group, session, function() {
+			// notify users about session finish 
 			nsp.to(roomName).emit('session:stateUpdate', null, null);
 		});
 	}

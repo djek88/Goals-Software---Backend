@@ -11,6 +11,12 @@ module.exports = {
 };
 
 function updateGroupAndSessAfterFinish(group, session, callback) {
+	// have bug, if couple sockets (users) at the same time disconnected
+	// this funcion call once or twice, hence couple once create new session.
+	if (group._lastSessionId.toString() === session._id.toString()) {
+		return callback();
+	}
+
 	async.series([
 		session.updateAttributes.bind(session, {state: [-1, -1, -1]}),
 		function(cb) {

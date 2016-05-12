@@ -248,11 +248,12 @@ module.exports = function(Goal) {
 
 		async.series([
 			isHaveAcessToGoal.bind(null, senderId, goal),
-			createUpdateVote
+			createUpdateVote,
+			changeStateSaveGoal
 		], function(err, results) {
 			if (err) return next(err);
 
-			var freshGoal = results[1];
+			var freshGoal = results[2];
 
 			next(null, freshGoal);
 
@@ -276,6 +277,7 @@ module.exports = function(Goal) {
 			if (!isHaveVote) {
 				goal.votes.push(vote);
 			} else {
+				// change existing vote
 				for (var i = goal.votes.length - 1; i >= 0; i--) {
 					if (goal.votes[i]._approverId === senderId) {
 						goal.votes[i] = vote;
@@ -284,13 +286,20 @@ module.exports = function(Goal) {
 				}
 			}
 
+			cb();
+		}
+
+		function changeStateSaveGoal(cb) {
 			var isHaveRejectedVote = goal.votes.some(function(v) {
-				return v.approved === false
+				return v.approved === false;
 			});
 
+			// from 4 to 2 state
 			if (goal.state === 4 && !isHaveRejectedVote) {
 				goal.state = 2;
-			} else if (goal.state === 2 && !achieve) {
+			}
+			// from 2 to 4 state
+			else if (goal.state === 2 && !achieve) {
 				goal.state = 4;
 			}
 
