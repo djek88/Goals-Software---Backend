@@ -1,4 +1,4 @@
-var loopback = require('loopback');
+var app = require('../../../server/server');
 var moment = require('moment-timezone');
 var async = require('async');
 var ApiError = require('../../../server/lib/error/Api-error');
@@ -132,20 +132,14 @@ module.exports = function(Group) {
 		],
 		returns: {type: 'object', root: true}
 	});
-	// Get active excuses for the next masterind session
-	Group.remoteMethod('activeExcuses', {
+	// Approve excuse
+	Group.remoteMethod('approveExcuse', {
 		isStatic: false,
-		description: 'Get active excuses for the next masterind session.',
-		http: {path: '/active-excuses', verb: 'get'},
-		returns: {type: 'object', root: true}
-	});
-	// Reject excuse
-	Group.remoteMethod('rejectExcuse', {
-		isStatic: false,
-		description: 'Reject excuse for the next masterind session.',
-		http: {path: '/reject-excuse/:excuseId', verb: 'post'},
+		description: 'Approve excuse for the next masterind session.',
+		http: {path: '/:sessionId/approve-excuse/:excuseId', verb: 'post'},
 		accepts: [
 			{arg: 'req', type: 'object', 'http': {source: 'req'}},
+			{arg: 'sessionId', type: 'string', description: 'Session id', required: true},
 			{arg: 'excuseId', type: 'string', description: 'Excuse id', required: true}
 		]
 	});
@@ -542,7 +536,7 @@ module.exports = function(Group) {
 
 			session.excuses[senderId] = {
 				excuse: excuse,
-				valid: true
+				_votes : []
 			};
 
 			session.updateAttributes({ excuses: session.excuses }, function(err, freshSess) {
@@ -556,37 +550,22 @@ module.exports = function(Group) {
 					if (err || !members.length) return;
 
 					var sender = members.filter(function(m) {return m._id === senderId;})[0];
-					var groupOwner = members.filter(function(m) {return m._id === group._ownerId;})[0];
-					var recipients = members.filter(function(m) {return m._id !== senderId && m._id !== group._ownerId;});
-
-					var subject = sender.firstName + ' ' + sender.lastName + ' has sent an excuse';
-
-					mailer.notifyByEmail(
-						groupOwner.email,
-						subject,
-						[
-							'Hi ' + groupOwner.firstName,
-
-							sender.firstName + ' ' + sender.lastName + 'has sent an excuse to not join the next session. His reason is:',
-
-							excuse,
-
-							'To accept or decline the excuse click the link below:',
-
-							'app.themastermind.nz/group/' + group._id + '/next-session-excuses'
-						].join('\r\r')
-					);
+					var recipients = members.filter(function(m) {return m._id !== senderId;});
 
 					recipients.forEach(function(recipient) {
 						mailer.notifyByEmail(
 							recipient.email,
-							subject,
+							sender.firstName + ' ' + sender.lastName + ' has sent an excuse',
 							[
 								'Hi ' + recipient.firstName,
 
-								sender.firstName + ' ' + sender.lastName + 'has sent an excuse to not join the next session. His reason is:',
+								sender.firstName + ' ' + sender.lastName + ' has sent an excuse to not join the next session. His reason is:',
 
-								excuse
+								excuse,
+
+								'To accept the excuse click the link below:',
+
+								'app.themastermind.nz/group/' + group._id + '/session/' + group._nextSessionId + '/approve-excuse/' + senderId
 							].join('\r\r')
 						);
 					});
@@ -595,37 +574,25 @@ module.exports = function(Group) {
 		});
 	};
 
-	Group.prototype.activeExcuses = function(next) {
+	Group.prototype.approveExcuse = function(req, sessionId, excuseId, next) {
+		var senderId = req.accessToken.userId;
 		var group = this;
 
-		if (!group._nextSessionId) return next(new ApiError(404, 'Next session not found'));
+		if (!isOwnerOrMember(senderId, group)) return next(new ApiError(403));
+		if (!group._nextSessionId || group._nextSessionId.toString() !== sessionId) {
+			return next(new ApiError(403, 'Session is not relevant'));
+		}
+		if (excuseId === senderId) return next(new ApiError(403, 'You can\'t leave vote for your excuse'));
 
 		Group.app.models.Session.findById(group._nextSessionId, function(err, session) {
 			if (err) return next(err);
-
-			for(var key in session.excuses) {
-				if (!session.excuses[key].valid) {
-					delete session.excuses[key];
-				}
-			}
-
-			next(null, session.excuses);
-		});
-	};
-
-	Group.prototype.rejectExcuse = function(req, excuseId, next) {
-		var group = this;
-
-		if (!group._nextSessionId) return next(new ApiError(404, 'Next session not found'));
-
-		Group.app.models.Session.findById(group._nextSessionId, function(err, session) {
-			if (err) return next(err);
+			if (!session) return next(new ApiError(404, 'Next session not found'));
 			if (!session.excuses[excuseId]) return next(new ApiError(404, 'Excuse not found'));
-			if (!session.excuses[excuseId].valid) {
-				return next(new ApiError(403, 'Excuse already rejected'));
+			if (session.excuses[excuseId]._votes.indexOf(senderId) >= 0) {
+				return next(new ApiError(403, 'You already have left your vote'));
 			}
 
-			session.excuses[excuseId].valid = false;
+			session.excuses[excuseId]._votes.push(senderId);
 
 			session.updateAttributes({excuses: session.excuses}, next);
 		});
@@ -659,7 +626,6 @@ module.exports = function(Group) {
 
 	Group.prototype.manuallyScheduleSession = function(req, startAt, next) {
 		var group = this;
-		var Session = Group.app.models.Session;
 		var minStartAt = Date.now() + (5 * 60 * 1000);
 
 		startAt = new Date(startAt || minStartAt);
@@ -669,15 +635,9 @@ module.exports = function(Group) {
 		}
 
 		if (!group._nextSessionId) {
-			Session.create({startAt: startAt, _groupId: group._id}, updateGroup);
+			createSession(group, startAt, updateGroup);
 		} else {
-			Session.findById(group._nextSessionId, function(err, session) {
-				if (err) return next(err);
-				if (!session) return next(new ApiError(404, 'Session not found.'));
-				if (session._facilitatorId) return next(new ApiError(403, 'During going session!'));
-
-				session.updateAttributes({startAt: startAt, excuses: {}}, updateGroup);
-			});
+			updateSession(group, startAt, updateGroup);
 		}
 
 		function updateGroup(err, freshSession) {
@@ -815,33 +775,23 @@ module.exports = function(Group) {
 
 		// Update session inst
 		if (groupInst.sessionConf.sheduled && groupInst._nextSessionId) {
-			updateSession(groupInst._nextSessionId, groupInst, next);
+			updateSession(groupInst, next);
 		}
 		// Create session inst
 		else if (groupInst.sessionConf.sheduled && !groupInst._nextSessionId) {
-			async.waterfall([
-				createSession.bind(null, groupInst),
-				function(session, cb) {
-					groupInst.updateAttributes({_nextSessionId: session._id}, cb);
-				}
-			], next);
+			createSession(groupInst, function(err, session) {
+				if (err) return next(err);
+
+				groupInst.updateAttributes({_nextSessionId: session._id}, next);
+			});
 		}
 		// Delete session inst
 		else if (!groupInst.sessionConf.sheduled && groupInst._nextSessionId) {
-			async.series([
-				function(cb) {
-					Session.findById(groupInst._nextSessionId, function(err, session) {
-						if (err) return cb(err);
-						if (!session) return cb(new ApiError(404, 'Session not found.'));
-						if (session._facilitatorId) return cb(new ApiError(403, 'During going session!'));
-						cb();
-					});
-				},
-				Session.destroyById.bind(Session, groupInst._nextSessionId),
-				function(cb) {
-					groupInst.updateAttributes({_nextSessionId: null}, cb);
-				}
-			], next);
+			deleteSession(groupInst._nextSessionId, function(err) {
+				if (err) return next(err);
+
+				groupInst.updateAttributes({_nextSessionId: null}, next);
+			});
 		}
 	}
 
@@ -950,27 +900,18 @@ module.exports = function(Group) {
 		next();
 	}
 
-	function createSession(group, cb) {
-		var startAt = calculatedStartAtDate(
-			group.sessionConf.frequencyType,
-			group.sessionConf.day,
-			group.sessionConf.timeZone,
-			group.sessionConf.time
-		);
+	function updateSession(group, startAt, cb) {
+		if (arguments.length === 2) {
+			cb = startAt;
+			startAt = null;
+		}
 
-		Group.app.models.Session.create({
-			startAt: startAt,
-			_groupId: group._id
-		}, cb);
-	}
-
-	function updateSession(sessionId, group, cb) {
 		Group.app.models.Session.findById(group._nextSessionId, function(err, session) {
 			if (err) return cb(err);
 			if (!session) return cb(new ApiError(404, 'Session not found.'));
 			if (session._facilitatorId) return next(new ApiError(403, 'During going session!'));
 
-			var startAt = calculatedStartAtDate(
+			startAt = startAt || calculatedStartAtDate(
 				group.sessionConf.frequencyType,
 				group.sessionConf.day,
 				group.sessionConf.timeZone,
@@ -983,11 +924,60 @@ module.exports = function(Group) {
 			}, cb);
 		});
 	}
+
+	function deleteSession(sessionId, cb) {
+		Group.app.models.Session.findById(sessionId, function(err, session) {
+			if (err) return cb(err);
+			if (!session) return cb(new ApiError(404, 'Session not found.'));
+			if (session._facilitatorId) return cb(new ApiError(403, 'During going session!'));
+
+			Group.app.models.Session.destroyById(sessionId, cb);
+		});
+	}
 };
 
+module.exports.createSession = createSession;
 module.exports.calculatedStartAtDate = calculatedStartAtDate;
 module.exports.isOwnerOrMember = isOwnerOrMember;
 module.exports.changeModelByWhiteList = changeModelByWhiteList;
+
+function createSession(group, startAt, cb) {
+	if (arguments.length === 2) {
+		cb = startAt;
+		startAt = null;
+	}
+
+	startAt = startAt || calculatedStartAtDate(
+		group.sessionConf.frequencyType,
+		group.sessionConf.day,
+		group.sessionConf.timeZone,
+		group.sessionConf.time
+	);
+
+	app.models.Session.create({
+		startAt: startAt,
+		_groupId: group._id 
+	}, cb);
+}
+
+function calculatedStartAtDate(freqType, day, timeZone, time) {
+	var nextSessDate = getDateByFreqTypeAndWeekday(freqType, day);
+	var result = moment(nextSessDate)
+		.tz(timeZone)
+		.hour(time)
+		.minute(time.split(".")[1])
+		.second(0)
+		.utc()
+		.format();
+
+	return new Date(result);
+}
+
+function isOwnerOrMember(userId, group) {
+	return group._memberIds.concat(group._ownerId).some(function(id) {
+		return id.toString() === userId.toString();
+	});
+}
 
 function changeModelByWhiteList(resource) {
 	var WHITE_LIST_FIELDS = ['_id', 'firstName', 'lastName', 'timeZone', 'description', 'avatar', 'social'];
@@ -998,12 +988,6 @@ function changeModelByWhiteList(resource) {
 	});
 
 	return destination;
-}
-
-function isOwnerOrMember(userId, group) {
-	return group._memberIds.concat(group._ownerId).some(function(id) {
-		return id.toString() === userId.toString();
-	});
 }
 
 function currentNumberMembers(group) {
@@ -1022,19 +1006,6 @@ function prepareEmails(emails) {
 	});
 
 	return emails.join(', ');
-}
-
-function calculatedStartAtDate(freqType, day, timeZone, time) {
-	var nextSessDate = getDateByFreqTypeAndWeekday(freqType, day);
-	var result = moment(nextSessDate)
-		.tz(timeZone)
-		.hour(time)
-		.minute(time.split(".")[1])
-		.second(0)
-		.utc()
-		.format();
-
-	return new Date(result);
 }
 
 function getDateByFreqTypeAndWeekday(freqType, day) {

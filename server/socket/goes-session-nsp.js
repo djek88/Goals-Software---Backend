@@ -135,7 +135,7 @@ function turnToNextState(nsp, roomName, session, group) {
 		}
 
 		return shared.updateGroupAndSessAfterFinish(group, session, function() {
-			// notify users about session finish 
+			// notify users about session finish
 			nsp.to(roomName).emit('session:stateUpdate', null, null);
 		});
 	}

@@ -1,6 +1,6 @@
 var async = require('async');
 var app = require('../server');
-var calculatedStartAtDate = require('../../common/models/group/group').calculatedStartAtDate;
+var createSession = require('../../common/models/group/group').createSession;
 
 module.exports = {
 	updateGroupAndSessAfterFinish: updateGroupAndSessAfterFinish,
@@ -13,10 +13,10 @@ module.exports = {
 function updateGroupAndSessAfterFinish(group, session, callback) {
 	// have bug, if couple sockets (users) at the same time disconnected
 	// this funcion call once or twice, hence couple once create new session.
-	if (group._lastSessionId.toString() === session._id.toString()) {
+	if (group._lastSessionId && group._lastSessionId.toString() === session._id.toString()) {
 		return callback();
 	}
-
+	
 	async.series([
 		session.updateAttributes.bind(session, {state: [-1, -1, -1]}),
 		function(cb) {
@@ -27,17 +27,7 @@ function updateGroupAndSessAfterFinish(group, session, callback) {
 				}, cb);
 			}
 
-			var startAt = calculatedStartAtDate(
-				group.sessionConf.frequencyType,
-				group.sessionConf.day,
-				group.sessionConf.timeZone,
-				group.sessionConf.time
-			);
-
-			app.models.Session.create({
-				startAt: startAt,
-				_groupId: group._id
-			}, function(err, newSess) {
+			createSession(group, function(err, newSess) {
 				if (err) return cb(err);
 				if (!newSess) return cb(new Error());
 

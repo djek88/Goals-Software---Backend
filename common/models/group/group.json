@@ -117,8 +117,6 @@
 				"activeJoinRequests",
 				"approveRequest",
 				"rejectRequest",
-				"activeExcuses",
-				"rejectExcuse",
 				"manuallyScheduleSession"
 			],
 			"principalType": "ROLE",
@@ -133,6 +131,7 @@
 				"inviteNewMembers",
 				"requestToJoin",
 				"provideExcuse",
+				"approveExcuse",
 				"memberGoals",
 				"relatedActiveGoals"
 			],
