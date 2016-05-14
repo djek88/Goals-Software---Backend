@@ -626,13 +626,15 @@ module.exports = function(Group) {
 
 	Group.prototype.manuallyScheduleSession = function(req, startAt, next) {
 		var group = this;
-		var minStartAt = Date.now() + (5 * 60 * 1000);
+		var minStartAt = new Date().setMinutes(new Date().getMinutes() + 7);
 
 		startAt = new Date(startAt || minStartAt);
 
 		if (startAt.toString() === 'Invalid Date' || startAt < minStartAt) {
 			return next(ApiError.incorrectParam('startAt'));
 		}
+		// startAt time always have secconds 0
+		startAt.setSeconds(0);
 
 		if (!group._nextSessionId) {
 			createSession(group, startAt, updateGroup);

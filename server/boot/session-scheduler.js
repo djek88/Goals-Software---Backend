@@ -1,12 +1,11 @@
 var CronJob = require('cron').CronJob;
-var moment = require('moment');
 var shared = require('../socket/shared');
 var async = require('async');
 
 module.exports = function(app) {
 	var job = new CronJob({
-		//cronTime: '00 */05 * * * *',
-		cronTime: '*/20 * * * * *', // every 10 sec
+		cronTime: '00 */05 * * * *',
+		//cronTime: '*/10 * * * * *', // every 10 sec
 		onTick: onTick,
 		start: true
 	});
@@ -33,6 +32,8 @@ module.exports = function(app) {
 				async.waterfall([
 					session.Group.getAsync.bind(session),
 					function(group, cb) {
+						if (!group) return cb();
+
 						shared.updateGroupAndSessAfterFinish(group, session, cb);
 					}
 				], callback);
