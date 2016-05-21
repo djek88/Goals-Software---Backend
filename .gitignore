@@ -7,3 +7,4 @@ server/storage/files/*
 test/storage/avatars/*
 test/storage/files/*
 !test/storage/avatars/default-avatar
+!test/storage/files/default-avatar
