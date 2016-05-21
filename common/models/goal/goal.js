@@ -18,6 +18,8 @@ module.exports = function(Goal) {
 	Goal.disableRemoteMethod('deleteById', true);
 	Goal.disableRemoteMethod('exists', true);
 	Goal.disableRemoteMethod('createChangeStream', true);
+	Goal.disableRemoteMethod('prototype.__get__Group', true);
+	Goal.disableRemoteMethod('prototype.__get__Owner', true);
 
 	// Leave feedback
 	Goal.remoteMethod('leaveFeedback', {
@@ -120,31 +122,28 @@ module.exports = function(Goal) {
 	Goal.prototype.notifyGroupMembers = function(next) {
 		var goal = this;
 
-		if (Date.now() >= new Date(goal.dueDate)) {
-			return next(new ApiError(403, 'Goal due date has been expired!'));
-		}
-
 		goal.updateAttributes({state: 2}, function(err, freshGoal) {
 			if (err) return next(err);
 
+			next();
+
+			// find and notify other group members, about goal was achieved
 			Goal.app.models.Group.findById(freshGoal._groupId, function(err, group) {
-				if (err) return next(err);
-				if (!group) return next(new ApiError(404, 'Goal group not found!'));
-				// if group don't have any members exept goal owner
-				if (group._ownerId === freshGoal._ownerId && !group._memberIds.length) {
-					return next(new ApiError(404, 'Changes saved success, but no one to notify!'));
+				if (err || !group ||
+					// if group don't have any members exept goal owner
+					(group._ownerId === freshGoal._ownerId && !group._memberIds.length)) {
+					return;
 				}
 
 				Goal.app.models.Customer.find({
 					where: {_id: {inq: group._memberIds.concat(group._ownerId)}}
 				}, function(err, customers) {
-					if (err) return next(err);
-					if (!customers.length) return next(new ApiError(404, 'Customers not found!'));
+					if (err || !customers.length) return;
 
 					var goalOwner = customers.filter(function(m) {return m._id === freshGoal._ownerId;})[0];
 					var recipients = customers.filter(function(m) { return m._id !== freshGoal._ownerId;});
 
-					async.each(recipients, function(recipient, callback) {
+					recipients.forEach(function(recipient) {
 						mailer.notifyByEmail(
 							recipient.email,
 							goalOwner.firstName + ' has completed his goal (please review)',
@@ -158,10 +157,9 @@ module.exports = function(Goal) {
 								'You can also check out the status of all ' + goalOwner.firstName + 's goals at:\r\r',
 
 								'app.themastermind.nz/group/' + freshGoal._groupId + '/member-goals/' + freshGoal._ownerId
-							].join(''),
-							callback
+							].join('')
 						);
-					}, next);
+					});
 				});
 			});
 		});
@@ -343,15 +341,12 @@ module.exports = function(Goal) {
 	Goal.beforeRemote('create', checkGroupId);
 	// Deny change goal when due date reached
 	Goal.beforeRemote('prototype.updateAttributes', denyIfDueDateReached);
+	Goal.beforeRemote('prototype.notifyGroupMembers', denyIfDueDateReached);
 	// Return only sender goals
 	Goal.afterRemote('find', onlyOwnGoals);
 	// Check is owner or group member
-	Goal.afterRemote('findById', checkIsOwnerOrGroupMember.bind(null, false));
-	Goal.afterRemote('findOne', checkIsOwnerOrGroupMember.bind(null, false));
-	Goal.beforeRemote('prototype.__get__Group', checkIsOwnerOrGroupMember.bind(null, true));
-	Goal.beforeRemote('prototype.__get__Owner', checkIsOwnerOrGroupMember.bind(null, true));
-	// Exclude protected fields from responce
-	Goal.afterRemote('prototype.__get__Owner', excludeFields);
+	Goal.afterRemote('findById', checkIsOwnerOrGroupMember);
+	Goal.afterRemote('findOne', checkIsOwnerOrGroupMember);
 
 	function delIdStateEvidencesFeedbacksVotes(ctx, goal, next) {
 		delete ctx.req.body._id;
@@ -407,18 +402,11 @@ module.exports = function(Goal) {
 		next();
 	}
 
-	function checkIsOwnerOrGroupMember(isProtoMethod, ctx, goal, next) {
+	function checkIsOwnerOrGroupMember(ctx, goal, next) {
+		if (!goal) return next();
+
 		var senderId = ctx.req.accessToken.userId;
-
-		if (isProtoMethod) return isHaveAcessToGoal(senderId, ctx.instance, next);
-		if (goal) return isHaveAcessToGoal(senderId, goal, next);
-
-		next();
-	}
-
-	function excludeFields(ctx, group, next) {
-		ctx.result = changeModelByWhiteList(ctx.result);
-		next();
+		isHaveAcessToGoal(senderId, goal, next);
 	}
 
 	function isHaveAcessToGoal(userId, goal, cb) {

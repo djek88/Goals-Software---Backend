@@ -78,11 +78,6 @@
 	"acls": [
 		{
 			"property": [
-				"exists",
-				"__get__Balance",
-				"__update__Balance",
-				"__get__Social",
-				"__update__Social",
 				"uploadAvatar"
 			],
 			"principalType": "ROLE",
@@ -90,7 +85,9 @@
 			"permission": "ALLOW"
 		},
 		{
-			"property": "baseCustomerInfo",
+			"property": [
+				"baseCustomerInfo"
+			],
 			"principalType": "ROLE",
 			"principalId": "$authenticated",
 			"permission": "ALLOW"

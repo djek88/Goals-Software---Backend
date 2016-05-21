@@ -9,6 +9,7 @@ module.exports = function(Customer) {
 	// Disable unnecessary methods
 	Customer.disableRemoteMethod('upsert', true);
 	Customer.disableRemoteMethod('create', true);
+	Customer.disableRemoteMethod('exists', true);
 	Customer.disableRemoteMethod('createChangeStream', true);
 	Customer.disableRemoteMethod('__get__accessTokens', false);
 	Customer.disableRemoteMethod('__create__accessTokens', false);
@@ -18,8 +19,12 @@ module.exports = function(Customer) {
 	Customer.disableRemoteMethod('__destroyById__accessTokens', false);
 	Customer.disableRemoteMethod('__count__accessTokens', false);
 	Customer.disableRemoteMethod('__create__Balance', false);
+	Customer.disableRemoteMethod('__update__Balance', false);
+	Customer.disableRemoteMethod('__get__Balance', false);
 	Customer.disableRemoteMethod('__destroy__Balance', false);
 	Customer.disableRemoteMethod('__create__Social', false);
+	Customer.disableRemoteMethod('__update__Social', false);
+	Customer.disableRemoteMethod('__get__Social', false);
 	Customer.disableRemoteMethod('__destroy__Social', false);
 
 	// UploadAvatar request
@@ -56,7 +61,7 @@ module.exports = function(Customer) {
 		Container.getContainers(function (err, containers) {
 			if (err) return next(err);
 
-			if (containers.some(function(c) { return c.name === customerId; })) {
+			if (containers.some(function(c) {return c.name === customerId;})) {
 				Container.destroyContainer(customerId, createContainerSaveFile);
 			} else {
 				createContainerSaveFile(null);
@@ -103,7 +108,7 @@ module.exports = function(Customer) {
 	Customer.afterRemote('prototype.uploadAvatar', setAvatarField);
 	// Login by FHQ sessionId
 	Customer.beforeRemote('login', loginBySessionId);
-	// Deny set manualy id, fhqSessionId, avatar fields
+	// Deny set manualy id, fhqSessionId, avatar, email, password fields
 	Customer.beforeRemote('prototype.updateAttributes', delProperties);
 
 	function setAvatarField(ctx, modelInstance, next) {

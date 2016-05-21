@@ -1,10 +1,12 @@
 {
-  "name": "goals-software-backend",
+  "name": "themastemind_server",
   "version": "1.0.0",
+  "description": "Server side application",
   "main": "server/server.js",
   "scripts": {
-    "start": "node .",
-    "pretest": "jshint ."
+    "start": "sudo ./node_modules/.bin/nodemon .",
+    "test": "NODE_ENV=test ./node_modules/.bin/mocha -S test/",
+    "prod": "NODE_ENV=production node ."
   },
   "dependencies": {
     "async": "^1.5.2",
@@ -14,6 +16,7 @@
     "cors": "^2.5.2",
     "cron": "^1.1.0",
     "debug": "^2.2.0",
+    "lodash": "^4.12.0",
     "loopback": "^2.22.0",
     "loopback-boot": "^2.6.5",
     "loopback-component-explorer": "^2.1.0",
@@ -29,11 +32,9 @@
     "socketio-auth": "0.0.5"
   },
   "devDependencies": {
-    "jshint": "^2.5.6"
-  },
-  "repository": {
-    "type": "",
-    "url": ""
-  },
-  "description": "goals-software-backend"
+    "chai": "*",
+    "mocha": "*",
+    "nodemon": "^1.9.2",
+    "supertest": "*"
+  }
 }

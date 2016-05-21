@@ -1,0 +1,30 @@
+{
+	"firstUser": {
+		"_id": "14415587",
+		"firstName": "firstName",
+		"email": "1@gmail.com",
+		"fhqSessionId": "2cvufcl6ju3o1i0qpm1o1c5mi3",
+		"password": "2cvufcl6ju3o1i0qpm1o1c5mi3"
+	},
+	"secondUser": {
+		"_id": "14415597",
+		"firstName": "firstName",
+		"email": "2@gmail.com",
+		"fhqSessionId": "2cvufcl6ju3o1i0qpm1o1c5mi3",
+		"password": "2cvufcl6ju3o1i0qpm1o1c5mi3"
+	},
+	"thirdUser": {
+		"_id": "14415607",
+		"firstName": "firstName",
+		"email": "3@gmail.com",
+		"fhqSessionId": "2cvufcl6ju3o1i0qpm1o1c5mi3",
+		"password": "2cvufcl6ju3o1i0qpm1o1c5mi3"
+	},
+	"fourthUser": {
+		"_id": "14415617",
+		"firstName": "firstName",
+		"email": "4@gmail.com",
+		"fhqSessionId": "2cvufcl6ju3o1i0qpm1o1c5mi3",
+		"password": "2cvufcl6ju3o1i0qpm1o1c5mi3"
+	}
+}

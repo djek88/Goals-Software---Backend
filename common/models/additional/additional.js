@@ -63,6 +63,6 @@ module.exports = function(Additional) {
 	};
 
 	Additional.evidenceSupportedTypes = function(next) {
-		next(null, resources.supportedEvidenceTypes);
+		next(null, resources.evidenceSupportedTypes);
 	};
 };

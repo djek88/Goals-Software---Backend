@@ -78,6 +78,12 @@
 			"permission": "ALLOW"
 		},
 		{
+			"property": "notifyGroupMembers",
+			"principalType": "ROLE",
+			"principalId": "$everyone",
+			"permission": "DENY"
+		},
+		{
 			"property": [
 				"create",
 				"__create__Votes",

@@ -76,7 +76,7 @@
 		"4": "Health and Fithness",
 		"5": "Other"
 	},
-	"supportedEvidenceTypes": {
+	"evidenceSupportedTypes": {
 		".jpg": "image/jpeg",
 		".gif": "image/gif",
 		".png": "image/png",
