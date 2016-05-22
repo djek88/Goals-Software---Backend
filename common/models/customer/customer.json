@@ -1,7 +1,7 @@
 {
 	"name": "Customer",
 	"base": "User",
-	"strict": true,
+	"strict": "throw",
 	"options": {
 		"mongodb": {
 			"collection": "Customers"
@@ -9,9 +9,17 @@
 		"validateUpsert": true
 	},
 	"properties": {
+		"username": false,
+		"realm": false,
+		"credentials": false,
+		"challenges": false,
+		"status": false,
+		"created": false,
+		"lastUpdated": false,
+
 		"_id": {
-			"type": "ObjectId",
-			"generated": true,
+			"type": "String",
+			"generated": false,
 			"id": true
 		},
 		"firstName": {
@@ -20,40 +28,76 @@
 		},
 		"lastName": {
 			"type": "String",
+			"default": ""
+		},
+		"fhqSessionId": {
+			"type": "String",
 			"required": true
 		},
 		"timeZone": {
 			"type": "String",
-			"default": ""
+			"default": "EST"
 		},
-		"description":{
+		"description": {
 			"type": "String",
 			"default": ""
 		},
 		"avatar": {
 			"type": "String",
-			"default": ""
+			"default": "/AvatarsContainers/default-avatar/download/male.png"
 		}
 	},
 	"mixins": {
-		"TimeStamp" : true
+		"TimeStamp": true
 	},
-	"hidden": ["createdAt", "updatedAt"],
+	"hidden": ["updatedAt", "fhqSessionId"],
+	"protected": ["email", "fhqSessionId", "emailVerified", "verificationToken", "balance"],
 	"validations": [],
 	"relations": {
 		"Balance": {
 			"type": "embedsOne",
 			"model": "Balance",
 			"property": "balance",
-			"default": {}
+			"default": {},
+			"options": {
+				"validate": true,
+				"forceId": false
+			}
 		},
 		"Social": {
 			"type": "embedsOne",
 			"model": "Social",
 			"property": "social",
-			"default": {}
+			"default": {},
+			"options": {
+				"validate": true,
+				"forceId": false
+			}
 		}
 	},
-	"acls": [],
+	"acls": [
+		{
+			"property": [
+				"uploadAvatar"
+			],
+			"principalType": "ROLE",
+			"principalId": "$owner",
+			"permission": "ALLOW"
+		},
+		{
+			"property": [
+				"baseCustomerInfo"
+			],
+			"principalType": "ROLE",
+			"principalId": "$authenticated",
+			"permission": "ALLOW"
+		},
+		{
+			"property": "devLoginnnnnnnnnnnnnnnnnnnnnnnnn",
+			"principalType": "ROLE",
+			"principalId": "$everyone",
+			"permission": "ALLOW"
+		}
+	],
 	"methods": {}
 }

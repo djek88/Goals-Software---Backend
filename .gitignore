@@ -1,1 +1,10 @@
 node_modules
+server/storage/avatars/*
+server/storage/files/*
+!server/storage/avatars/default-avatar
+!server/storage/files/default-folder
+
+test/storage/avatars/*
+test/storage/files/*
+!test/storage/avatars/default-avatar
+!test/storage/files/default-folder

@@ -1,7 +1,7 @@
 {
 	"name": "Group",
 	"base": "PersistedModel",
-	"strict": true,
+	"strict": "throw",
 	"options": {
 		"mongodb": {
 			"collection": "Groups"
@@ -37,12 +37,16 @@
 		"maxMembers": {
 			"type": "Number",
 			"default": 1
+		},
+		"memberCanInvite": {
+			"type": "Boolean",
+			"default": false
 		}
 	},
 	"mixins": {
 		"TimeStamp" : true
 	},
-	"hidden": ["createdAt", "updatedAt"],
+	"hidden": ["updatedAt"],
 	"validations": [],
 	"relations": {
 		"SessionConf": {
@@ -58,25 +62,92 @@
 		"Owner": {
 			"type": "belongsTo",
 			"model": "Customer",
-			"foreignKey": "ownerId"
+			"foreignKey": "_ownerId"
 		},
 		"Members": {
 			"type": "referencesMany",
 			"model": "Customer",
-			"foreignKey": "memberIds",
+			"foreignKey": "_memberIds",
 			"default": []
 		},
 		"NextSession": {
 			"type": "belongsTo",
 			"model": "Session",
-			"foreignKey": "nextSessionId"
+			"foreignKey": "_nextSessionId"
 		},
 		"LastSession": {
 			"type": "belongsTo",
 			"model": "Session",
-			"foreignKey": "lastSessionId"
+			"foreignKey": "_lastSessionId"
 		}
 	},
-	"acls": [],
+	"acls": [
+		{
+			"accessType": "*",
+			"principalType": "ROLE",
+			"principalId": "$everyone",
+			"permission": "DENY"
+		},
+		{
+			"accessType": "READ",
+			"principalType": "ROLE",
+			"principalId": "$authenticated",
+			"permission": "ALLOW"
+		},
+		{
+			"property": "create",
+			"principalType": "ROLE",
+			"principalId": "$authenticated",
+			"permission": "ALLOW"
+		},
+		{
+			"property": [
+				"activeJoinRequests"
+			],
+			"principalType": "ROLE",
+			"principalId": "$everyone",
+			"permission": "DENY"
+		},
+		{
+			"property": [
+				"updateAttributes",
+				"deleteById",
+				"__update__SessionConf",
+				"changeGroupOwner",
+				"activeJoinRequests",
+				"approveRequest",
+				"rejectRequest",
+				"manuallyScheduleSession"
+			],
+			"principalType": "ROLE",
+			"principalId": "$owner",
+			"permission": "ALLOW"
+		},
+		{
+			"property": [
+				"__unlink__Members",
+				"sendEmailToGroup",
+				"sendEmailToMember",
+				"inviteNewMembers",
+				"requestToJoin",
+				"provideExcuse",
+				"approveExcuse",
+				"memberGoals",
+				"relatedActiveGoals"
+			],
+			"principalType": "ROLE",
+			"principalId": "$authenticated",
+			"permission": "ALLOW"
+		},
+		{
+			"property": [
+				"baseGroupInfo",
+				"countPassedSessions"
+			],
+			"principalType": "ROLE",
+			"principalId": "$everyone",
+			"permission": "ALLOW"
+		}
+	],
 	"methods": {}
 }

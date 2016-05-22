@@ -1,7 +1,7 @@
 {
 	"name": "Goal",
 	"base": "PersistedModel",
-	"strict": true,
+	"strict": "throw",
 	"options": {
 		"mongodb": {
 			"collection": "Goals"
@@ -20,7 +20,7 @@
 		},
 		"description": {
 			"type": "String",
-			"required": true
+			"default": ""
 		},
 		"dueDate": {
 			"type": "Date",
@@ -30,11 +30,19 @@
 			"type": "Number",
 			"default": 1
 		},
+		"comments": {
+			"type": "String",
+			"default": ""
+		},
 		"evidences": {
-			"type": ["String"],
+			"type": ["Object"],
 			"default": []
 		},
-		"comments": {
+		"feedbacks": {
+			"type": ["Object"],
+			"default": []
+		},
+		"votes": {
 			"type": ["Object"],
 			"default": []
 		}
@@ -42,25 +50,62 @@
 	"mixins": {
 		"TimeStamp": true
 	},
-	"hidden": ["createdAt", "updatedAt"],
+	"hidden": ["updatedAt"],
 	"validations": [],
 	"relations": {
-		"Approvers": {
-			"type": "referencesMany",
-			"model": "Customer",
-			"foreignKey": "ApproverIds"
-		},
 		"Owner": {
 			"type": "belongsTo",
 			"model": "Customer",
-			"foreignKey": "ownerId"
+			"foreignKey": "_ownerId"
 		},
 		"Group": {
 			"type": "belongsTo",
 			"model": "Group",
-			"foreignKey": "groupId"
+			"foreignKey": "_groupId"
 		}
 	},
-	"acls": [],
+	"acls": [
+		{
+			"accessType": "*",
+			"principalType": "ROLE",
+			"principalId": "$everyone",
+			"permission": "DENY"
+		},
+		{
+			"accessType": "READ",
+			"principalType": "ROLE",
+			"principalId": "$authenticated",
+			"permission": "ALLOW"
+		},
+		{
+			"property": "notifyGroupMembers",
+			"principalType": "ROLE",
+			"principalId": "$everyone",
+			"permission": "DENY"
+		},
+		{
+			"property": [
+				"create",
+				"__create__Votes",
+				"leaveFeedback",
+				"leaveVote"
+			],
+			"principalType": "ROLE",
+			"principalId": "$authenticated",
+			"permission": "ALLOW"
+		},
+		{
+			"property": [
+				"updateAttributes",
+				"addComments",
+				"notifyGroupMembers",
+				"uploadEvidence",
+				"removeEvidence"
+			],
+			"principalType": "ROLE",
+			"principalId": "$owner",
+			"permission": "ALLOW"
+		}
+	],
 	"methods": {}
 }

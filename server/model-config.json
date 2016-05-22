@@ -3,8 +3,9 @@
 		"sources": [
 			"../common/models/customer",
 			"../common/models/group",
-			"../common/models/session",
-			"../common/models/goal"
+			"../common/models/goal",
+			"../common/models/containers",
+			"../common/models/additional"
 		],
 		"mixins": [
 			"../common/mixins"
@@ -40,22 +41,38 @@
 	},
 	"Session": {
 		"dataSource": "db",
-		"public": true
+		"public": false
 	},
 	"Goal": {
 		"dataSource": "db",
 		"public": true
 	},
-	"Social": {
+	"JoinRequest": {
 		"dataSource": "db",
 		"public": false
 	},
+	"Social": {
+		"dataSource": "transient",
+		"public": false
+	},
 	"Balance": {
-		"dataSource": "db",
+		"dataSource": "transient",
 		"public": false
 	},
 	"SessionConf": {
 		"dataSource": "db",
 		"public": false
+	},
+	"AvatarsContainer": {
+		"dataSource": "avatarsStorage",
+		"public": true
+	},
+	"FilesContainer": {
+		"dataSource": "filesStorage",
+		"public": true
+	},
+	"Additional": {
+		"dataSource": "memory",
+		"public": true
 	}
 }

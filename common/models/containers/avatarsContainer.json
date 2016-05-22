@@ -1,0 +1,9 @@
+{
+	"name": "AvatarsContainer",
+	"base": "Model",
+	"properties": {},
+	"validations": [],
+	"relations": {},
+	"acls": [],
+	"methods": []
+}

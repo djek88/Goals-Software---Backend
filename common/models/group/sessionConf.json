@@ -1,6 +1,7 @@
 {
 	"name": "SessionConf",
-	"base": "PersistedModel",
+	"base": "TransientModel",
+	"strict": "throw",
 	"options": {
 		"validateUpsert": true
 	},
@@ -9,15 +10,23 @@
 			"type": "Boolean",
 			"default": true
 		},
-		"date": {
-			"type": "Date",
-			"defaultFn": "now"
+		"day": {
+			"type": "Number",
+			"default": 0
 		},
-		"frequency": {
+		"time": {
+			"type": "String",
+			"default": "0.00"
+		},
+		"timeZone": {
+			"type": "String",
+			"default": "EST"
+		},
+		"frequencyType": {
 			"type": "Number",
 			"default": 1
 		},
-		"roudLength": {
+		"roundLength": {
 			"type": ["Number"],
 			"default": [120, 180, 90, 120]
 		}

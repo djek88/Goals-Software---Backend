@@ -1,0 +1,50 @@
+{
+	"name": "JoinRequest",
+	"base": "Model",
+	"strict": "throw",
+	"options": {
+		"mongodb": {
+			"collection": "JoinRequests"
+		},
+		"validateUpsert": true
+	},
+	"properties": {
+		"_id": {
+			"type": "ObjectId",
+			"generated": true,
+			"id": true
+		},
+		"request": {
+			"type": "String",
+			"required": true
+		},
+		"approved": {
+			"type": "Boolean",
+			"default": false
+		},
+		"closed": {
+			"type": "Boolean",
+			"default": false
+		}
+	},
+	"mixins": {
+		"TimeStamp": true
+	},
+	"hidden": ["updatedAt", "approved", "closed"],
+	"protected": [],
+	"validations": [],
+	"relations": {
+		"Owner": {
+			"type": "belongsTo",
+			"model": "Customer",
+			"foreignKey": "_ownerId"
+		},
+		"Group": {
+			"type": "belongsTo",
+			"model": "Group",
+			"foreignKey": "_groupId"
+		}
+	},
+	"acls": [],
+	"methods": {}
+}
