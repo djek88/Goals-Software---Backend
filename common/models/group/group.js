@@ -334,19 +334,21 @@ module.exports = function(Group) {
 			function(customer, cb) {
 				mailer.notifyByEmail(
 					customer.email,
-					'Request to join your mastermind group',
+					'You have a new request to join your mastermind',
 					[
 						'Hi ' + customer.firstName,
 
-						'You have a request to join your mastermind group.',
+						'You have a new request to join your group ' + group.name,
 
-						'To accept to reject the request click the link below:',
+						'Here is the request:\r',
 
-						'app.themastermind.nz/group/' + group._id + '/join-requests',
+						request + '\r\r',
 
-						'Their application message is as follows:',
+						'If you would like to view the request in your group admin area then:',
 
-						request
+						'1) Login at: www.themastermind.nz/members',
+
+						'2) Goto app.themastermind.nz/group/' + group._id + '/join-requests'
 					].join('\r\r'),
 					cb
 				);
@@ -430,7 +432,7 @@ module.exports = function(Group) {
 						[
 							'Hi ' + requestOwner.firstName + '\r\r',
 
-							'You request to join the group' + group.name + 'has been accepted.\r\r',
+							'You request to join the group ' + group.name + ' has been accepted.\r\r',
 
 							'To login to your account click on the link below:\r\r',
 
