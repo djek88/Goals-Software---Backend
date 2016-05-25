@@ -58,6 +58,9 @@ module.exports = function(Customer) {
 		var Container = Customer.app.models.AvatarsContainer;
 		var customerId = this._id;
 
+		// if don't have file
+		if (!req._readableState.length) return next(ApiError.incorrectParam('file'));
+
 		Container.getContainers(function (err, containers) {
 			if (err) return next(err);
 

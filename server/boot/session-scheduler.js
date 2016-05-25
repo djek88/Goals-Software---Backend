@@ -3,8 +3,6 @@ var shared = require('../socket/shared');
 var async = require('async');
 
 module.exports = function(app) {
-	if (!app.socketServer) return;
-
 	var job = new CronJob({
 		cronTime: '00 */05 * * * *',
 		//cronTime: '*/10 * * * * *', // every 10 sec

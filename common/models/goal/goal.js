@@ -59,7 +59,7 @@ module.exports = function(Goal) {
 		],
 		returns: {type: 'object', root: true}
 	});
-	// Leave feedback
+	// Leave vote
 	Goal.remoteMethod('leaveVote', {
 		isStatic: false,
 		description: 'Leave vote for goal.',
@@ -170,6 +170,9 @@ module.exports = function(Goal) {
 		var goal = this;
 		var goalId = goal._id.toString();
 
+		// if don't have file
+		if (!req._readableState.length) return next(ApiError.incorrectParam('file'));
+
 		Container.getContainers(function (err, containers) {
 			if (err) return next(err);
 
@@ -240,6 +243,7 @@ module.exports = function(Goal) {
 
 		var senderId = req.accessToken.userId;
 		var goal = this;
+
 
 		if (goal._ownerId === senderId) return next(new ApiError(403));
 		if (goal.state !== 2 && goal.state !== 4) return next(new ApiError(403));
