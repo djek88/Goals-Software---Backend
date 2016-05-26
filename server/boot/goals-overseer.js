@@ -102,7 +102,9 @@ module.exports = function(app) {
 
 	function updateGoal(goal, group, newState) {
 		goal.updateAttributes({state: newState}, function(err, freshGoal) {
-			notifyGoalOwnerAboutPenalty(freshGoal, group);
+			if (freshGoal.state === 5) {
+				notifyGoalOwnerAboutPenalty(freshGoal, group);
+			}
 		});
 	}
 

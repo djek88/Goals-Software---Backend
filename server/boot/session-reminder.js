@@ -38,7 +38,7 @@ module.exports = function(app) {
 						members.forEach(function(member) {
 							mailer.notifyByEmail(
 								member.email,
-								'You mastermind group are meeting in ' + (minLeft === 60 ? '1 hr' : '5 mins'),
+								'Your mastermind group are meeting in ' + (minLeft === 60 ? '1 hr' : '5 mins'),
 								[
 									'Hi ' + member.firstName + '\r\r',
 

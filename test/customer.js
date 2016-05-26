@@ -1,11 +1,11 @@
-var fs = require('fs');
+/*var fs = require('fs');
 var assert = require('chai').assert;
 var async = require('async');
 var server = require('../server/server');
 
 var Customer = server.models.Customer;
 var AccessToken = server.models.AccessToken;
-var AvatarContainer = server.models.AvatarsContainer;
+var AvatarsContainer = server.models.AvatarsContainer;
 
 var routeHelper = require('./lib/route-helper')(Customer);
 var usersData = require('./resources/users');
@@ -84,11 +84,11 @@ describe('Customer model', function() {
 			async.series([
 				reset.bind(null, firstUser),
 				function(cb) {
-					AvatarContainer.getContainers(function (err, containers) {
+					AvatarsContainer.getContainers(function (err, containers) {
 						if (err) return cb(err);
 
 						if (containers.some(function(c) {return c.name === firstUser._id;})) {
-							return AvatarContainer.destroyContainer(firstUser._id, cb);
+							return AvatarsContainer.destroyContainer(firstUser._id, cb);
 						}
 						cb();
 					});
@@ -100,14 +100,22 @@ describe('Customer model', function() {
 			it('required authorization', function(done) {
 				api
 					.post(routeHelper('uploadAvatar', {id: firstUser._id}))
+					.attach('file', pathToFile + fileName)
 					.expect(401, done);
 			});
 
 			it('deny if not owner', function(done) {
 				api
 					.post(routeHelper('uploadAvatar', {id: secondUser._id}, fUserToken))
+					.attach('file', pathToFile + fileName)
 					.expect(401, done);
 			});
+		});
+
+		it('require file', function(done) {
+			api
+				.post(routeHelper('uploadAvatar', {id: firstUser._id}, fUserToken))
+				.expect(400, done);
 		});
 
 		it('success save file', function(done) {
@@ -175,4 +183,4 @@ describe('Customer model', function() {
 
 function reset(instance, cb) {
 	instance.updateAttributes(instance, cb);
-}
+}*/

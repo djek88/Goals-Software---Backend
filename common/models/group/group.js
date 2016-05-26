@@ -372,7 +372,8 @@ module.exports = function(Group) {
 			where: {
 				closed: false,
 				_groupId: this._id
-			}
+			},
+			include: 'Owner'
 		}, next);
 	};
 
@@ -561,13 +562,17 @@ module.exports = function(Group) {
 							[
 								'Hi ' + recipient.firstName,
 
-								sender.firstName + ' ' + sender.lastName + ' has sent an excuse to not join the next session. His reason is:',
+								sender.firstName + ' ' + sender.lastName + ' has sent an excuse to not join the next meeting. His reason is:',
 
 								excuse,
 
 								'To accept the excuse click the link below:',
 
-								'app.themastermind.nz/group/' + group._id + '/session/' + group._nextSessionId + '/approve-excuse/' + senderId
+								'app.themastermind.nz/group/' + group._id + '/session/' + group._nextSessionId + '/approve-excuse/' + senderId,
+
+								'To reject the excuse click the link below:',
+
+								'app.themastermind.nz/group/' + group._id + '/session/' + group._nextSessionId + '/reject-excuse/' + senderId
 							].join('\r\r')
 						);
 					});

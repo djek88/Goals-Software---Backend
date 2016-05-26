@@ -105,7 +105,9 @@ module.exports = function(Goal) {
 						[
 							'Hi ' + owner.firstName,
 
-							sender.firstName + ' has just left feedback on your goal. The said:',
+							sender.firstName + ' has just left feedback on your goal.',
+
+							'The feedback was:',
 
 							feedback,
 
@@ -244,7 +246,6 @@ module.exports = function(Goal) {
 		var senderId = req.accessToken.userId;
 		var goal = this;
 
-
 		if (goal._ownerId === senderId) return next(new ApiError(403));
 		if (goal.state !== 2 && goal.state !== 4) return next(new ApiError(403));
 
@@ -259,9 +260,7 @@ module.exports = function(Goal) {
 
 			next(null, freshGoal);
 
-			Goal.app.models.Customer.find({
-				where: {_id: {inq: [senderId, freshGoal._ownerId]}}
-			}, notifyOwner);
+			notifyOwner();
 		});
 
 		function createUpdateVote(cb) {
@@ -311,25 +310,38 @@ module.exports = function(Goal) {
 			}, cb);
 		}
 
-		function notifyOwner(err, members) {
-			if (err || members.length !== 2) return;
+		function notifyOwner() {
+			Goal.app.models.Customer.find({
+				where: {_id: {inq: [senderId, goal._ownerId]}}
+			}, function(err, members) {
+				if (err || members.length !== 2) return;
 
-			var sender = members.filter(function(m) {return m._id === senderId})[0];
-			var owner = members.filter(function(m) {return m._id !== senderId})[0];
+				var sender = members.filter(function(m) {return m._id === senderId})[0];
+				var owner = members.filter(function(m) {return m._id !== senderId})[0];
+				var message = 'Hi ' + owner.firstName + '\r\r';
 
-			mailer.notifyByEmail(
-				owner.email,
-				'Goal evidences was ' + (achieve ? 'approve' : 'rejected'),
-				[
-					'Hi ' + owner.firstName,
+				if (achieve) {
+					message += [
+						sender.firstName + ' ' + sender.lastName + ', has approved your goal evidence. To see any feedback go to:',
 
-					sender.firstName + ' ' + sender.lastName + ', was ' + (achieve ? 'approve' : 'rejected') + ' your goal evidence, for this goal:',
+						'app.themastermind.nz/group/' + goal._groupId + '/upload-goal-evidence/' + goal._id
+					].join('\r\r');
+				} else {
+					message += [
+						sender.firstName + ' ' + sender.lastName + ', has rejected your goal evidence. To see why, or add more, first login then go to:',
 
-					'app.themastermind.nz/group/' + goal._groupId + '/upload-goal-evidence/' + goal._id,
+						'app.themastermind.nz/group/' + goal._groupId + '/upload-goal-evidence/' + goal._id,
 
-					comment ? 'His comment:\r\r' + comment : ''
-				].join('\r\r')
-			);
+						comment ? 'The feeback was:\r\r' + comment : ''
+					].join('\r\r');
+				}
+
+				mailer.notifyByEmail(
+					owner.email,
+					'Your goal evidence has been ' + (achieve ? 'approved' : 'rejected'),
+					message
+				);
+			});
 		}
 	};
 
