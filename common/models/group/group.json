@@ -26,6 +26,14 @@
 			"type": "Number",
 			"default": 5
 		},
+		"avatar": {
+			"type": "String",
+			"default": "/GroupAvatars/default-avatar/download/group.png"
+		},
+		"attachment": {
+			"type": "String",
+			"default": ""
+		},
 		"penalty": {
 			"type": "Number",
 			"default": 20
@@ -39,6 +47,26 @@
 			"default": 1
 		},
 		"memberCanInvite": {
+			"type": "Boolean",
+			"default": false
+		},
+		"joiningFee": {
+			"type": "Number",
+			"default": 0
+		},
+		"quarterlyFee": {
+			"type": "Number",
+			"default": 0
+		},
+		"monthlyFee": {
+			"type": "Number",
+			"default": 0
+		},
+		"yearlyFee": {
+			"type": "Number",
+			"default": 0
+		},
+		"hideMembers": {
 			"type": "Boolean",
 			"default": false
 		}
@@ -110,9 +138,10 @@
 		},
 		{
 			"property": [
+				"uploadAvatar",
+				"uploadAttachment",
 				"updateAttributes",
 				"deleteById",
-				"__update__SessionConf",
 				"changeGroupOwner",
 				"activeJoinRequests",
 				"approveRequest",

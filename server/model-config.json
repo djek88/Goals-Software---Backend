@@ -63,12 +63,24 @@
 		"dataSource": "db",
 		"public": false
 	},
-	"AvatarsContainer": {
-		"dataSource": "avatarsStorage",
+	"GroupPreferences": {
+		"dataSource": "db",
+		"public": false
+	},
+	"GroupAvatars": {
+		"dataSource": "groupAvatarsStorage",
 		"public": true
 	},
-	"FilesContainer": {
-		"dataSource": "filesStorage",
+	"CustomerAvatars": {
+		"dataSource": "customerAvatarsStorage",
+		"public": true
+	},
+	"GoalEvidences": {
+		"dataSource": "goalEvidencesStorage",
+		"public": true
+	},
+	"GroupAttachment": {
+		"dataSource": "groupAttachmentStorage",
 		"public": true
 	},
 	"Additional": {

@@ -2,7 +2,7 @@ var async = require('async');
 var ApiError = require('../../../server/lib/error/Api-error');
 var mailer = require('../../../server/lib/mailer');
 var GOALSTATES = require('../additional/resources').goalStates;
-var SUPPORTEDEVIDENCETYPES = require('../additional/resources').supportedEvidenceTypes;
+var EVIDENCESUPPORTEDTYPES = require('../additional/resources').evidenceSupportedTypes;
 var isOwnerOrMember = require('../group/group').isOwnerOrMember;
 var changeModelByWhiteList = require('../group/group').changeModelByWhiteList;
 
@@ -168,7 +168,7 @@ module.exports = function(Goal) {
 	};
 
 	Goal.prototype.uploadEvidence = function(req, res, next) {
-		var Container = Goal.app.models.FilesContainer;
+		var Container = Goal.app.models.GoalEvidences;
 		var goal = this;
 		var goalId = goal._id.toString();
 
@@ -190,8 +190,8 @@ module.exports = function(Goal) {
 
 		function uploadFile() {
 			var supportTypes = [];
-			for(var key in SUPPORTEDEVIDENCETYPES) {
-				supportTypes.push(SUPPORTEDEVIDENCETYPES[key]);
+			for(var key in EVIDENCESUPPORTEDTYPES) {
+				supportTypes.push(EVIDENCESUPPORTEDTYPES[key]);
 			}
 
 			var options = {
@@ -202,7 +202,7 @@ module.exports = function(Goal) {
 					return fileName.join('.');
 				},
 				allowedContentTypes: supportTypes,
-				//maxFileSize: can pass a function(file, req, res) or number
+				//maxFileSize: can pass a function(file, req, res) or number, default is 10 MB
 				//acl: can pass a function(file, req, res)
 			};
 
@@ -221,7 +221,7 @@ module.exports = function(Goal) {
 	};
 
 	Goal.prototype.removeEvidence = function(fileName, next) {
-		var Container = Goal.app.models.FilesContainer;
+		var Container = Goal.app.models.GoalEvidences;
 		var goal = this;
 
 		for (var i = Object.keys(goal.evidences).length - 1; i >= 0; i--) {

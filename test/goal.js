@@ -8,13 +8,13 @@ var Customer = server.models.Customer;
 var AccessToken = server.models.AccessToken;
 var Group = server.models.Group;
 var Goal = server.models.Goal;
-var FilesContainer = server.models.FilesContainer;
+var GoalEvidences = server.models.GoalEvidences;
 
 var usersData = require('./resources/users');
 var routeHelper = require('./lib/route-helper')(Goal);
 var api;
 
-/*describe('Goal model', function() {
+describe('Goal model', function() {
 	var groupOwner = new Customer(usersData.firstUser);
 	var fMember = new Customer(usersData.secondUser);
 	var sMember = new Customer(usersData.thirdUser);
@@ -23,6 +23,7 @@ var api;
 		name: 'firstTestGroup',
 		_ownerId: groupOwner._id,
 		_memberIds: [fMember._id, sMember._id],
+		maxMembers: 3,
 		sessionConf: {sheduled: false}
 	});
 
@@ -305,6 +306,14 @@ var api;
 				it('required authorization', function(done) {
 					api
 						.put(routeHelper('updateAttributes', {id: curGoal._id}))
+						.send({name: 'newName'})
+						.expect(401, checkIsInstanceNotChanged.bind(Goal, curGoal, done));
+				});
+
+				it('deny if not owner', function(done) {
+					api
+						.put(routeHelper('updateAttributes', {id: curGoal._id}, fMemberToken))
+						.send({name: 'newName'})
 						.expect(401, checkIsInstanceNotChanged.bind(Goal, curGoal, done));
 				});
 			});
@@ -587,16 +596,16 @@ var api;
 		describe('uploadEvidence', function() {
 			var fileName = 'testFile.png';
 			var pathToFile = './test/resources/';
-			var filesFolder = './test/storage/files/';
+			var filesFolder = './test/storage/goalEvidences/';
 
 			beforeEach(function(done) {
-				FilesContainer.getContainers(function(err, containers) {
+				GoalEvidences.getContainers(function(err, containers) {
 					if (err) return done(err);
 
 					containers = containers.filter(function(c) {return c.name !== 'default-folder'});
 
 					async.each(containers, function(container, cb) {
-						FilesContainer.destroyContainer(container.name, cb);
+						GoalEvidences.destroyContainer(container.name, cb);
 					}, done);
 				});
 			});
@@ -677,7 +686,7 @@ var api;
 			var goalForCurSuite;
 			var fileName;
 			var pathToFile = './test/resources/testFile.png';
-			var filesFolder = './test/storage/files/';
+			var filesFolder = './test/storage/goalEvidences/';
 
 			// upload file before each test
 			beforeEach(function(done) {
@@ -959,4 +968,4 @@ var api;
 	function modelToObj(model) {
 		return JSON.parse(JSON.stringify(model));
 	}
-});*/
+});

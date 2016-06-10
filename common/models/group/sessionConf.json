@@ -10,6 +10,18 @@
 			"type": "Boolean",
 			"default": true
 		},
+		"language": {
+			"type": "String",
+			"default": "en"
+		},
+		"offline": {
+			"type": "Boolean",
+			"default": false
+		},
+		"withoutFacilitator": {
+			"type": "Boolean",
+			"default": false
+		},
 		"day": {
 			"type": "Number",
 			"default": 0

@@ -17,6 +17,10 @@
 		"li": {
 			"type": "String",
 			"default": ""
+		},
+		"wb": {
+			"type": "String",
+			"default": ""
 		}
 	},
 	"validations": [],

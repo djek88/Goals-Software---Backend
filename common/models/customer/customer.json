@@ -44,16 +44,31 @@
 		},
 		"avatar": {
 			"type": "String",
-			"default": "/AvatarsContainers/default-avatar/download/male.png"
+			"default": "/CustomerAvatars/default-avatar/download/male.png"
+		},
+		"visitSeveralGroups": {
+			"type": "Boolean",
+			"default": false
 		}
 	},
 	"mixins": {
 		"TimeStamp": true
 	},
-	"hidden": ["updatedAt", "fhqSessionId"],
+	"hidden": ["fhqSessionId"],
 	"protected": ["email", "fhqSessionId", "emailVerified", "verificationToken", "balance"],
+	"whiteListFields": ["_id", "firstName", "lastName", "timeZone", "description", "avatar", "social", "visitSeveralGroups", "groupPreferences"],
 	"validations": [],
 	"relations": {
+		"GroupPreferences": {
+			"type": "embedsOne",
+			"model": "GroupPreferences",
+			"property": "groupPreferences",
+			"default": {},
+			"options": {
+				"validate": true,
+				"forceId": false
+			}
+		},
 		"Balance": {
 			"type": "embedsOne",
 			"model": "Balance",

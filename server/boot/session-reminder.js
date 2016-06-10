@@ -19,41 +19,38 @@ module.exports = function(app) {
 		}, function(err, sessions) {
 			if (err) return;
 
-			async.each(sessions, function(session, callback) {
+			async.each(sessions, function(session) {
 				var minLeft = parseInt((session.startAt - Date.now()) / 1000 / 60, 10);
 
-				if (minLeft !== 60 && minLeft !== 5) return callback();
+				if (minLeft !== 60 && minLeft !== 5) return;
 
-				async.waterfall([
-					session.Group.getAsync.bind(session),
-					function(group, cb) {
-						if (!group) return cb();
+				var memberIds = session.Group()._memberIds.concat(session.Group()._ownerId);
 
-						var memberIds = group._memberIds.concat(group._ownerId);
-						app.models.Customer.find({where: {_id: {inq: memberIds}}}, cb);
-					},
-					function(members, cb) {
-						cb();
+				app.models.Customer.find({where: {_id: {inq: memberIds}}}, function(err, members) {
+					if (err) return;
 
-						members.forEach(function(member) {
-							mailer.notifyByEmail(
-								member.email,
-								'Your mastermind group are meeting in ' + (minLeft === 60 ? '1 hr' : '5 mins'),
-								[
-									'Hi ' + member.firstName + '\r\r',
+					members.forEach(function(member) {
+						var message = [
+							'Hi ' + member.firstName + '\r\r',
 
-									'Just a quick reminder that your group will be meeting in ' + (minLeft === 60 ? '1 hr' : '5 mins') + '.\r\r',
+							'Just a quick reminder that your group will be meeting in ' + (minLeft === 60 ? '1 hr' : '5 mins') + '.\r\r',
 
-									'If you can\'t make it, remember to make your excuse before the meeting begins.\r\r',
+							(session.Group().offlineSessions ? '' : [
+								'If you can\'t make it, remember to make your excuse before the meeting begins.\r\r',
 
-									minLeft === 5 ? 'To join the meeting click the link below:\r\rapp.themastermind.nz/session/' + session._groupId + '/start\r\r': '',
+								minLeft === 5 ? 'To join the meeting click the link below:\r\rapp.themastermind.nz/session/' + session._groupId + '/start\r\r': ''
+							].join('')),
 
-									'Growing together,\rThe Mastermind Team'
-								].join('')
-							);
-						});
-					}
-				], callback);
+							'Growing together,\rThe Mastermind Team'
+						].join('');
+
+						mailer.notifyByEmail(
+							member.email,
+							'Your mastermind group are meeting in ' + (minLeft === 60 ? '1 hr' : '5 mins'),
+							message
+						);
+					});
+				});
 			});
 		});
 	}

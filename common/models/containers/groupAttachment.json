@@ -1,5 +1,5 @@
 {
-	"name": "AvatarsContainer",
+	"name": "GroupAttachment",
 	"base": "Model",
 	"properties": {},
 	"validations": [],

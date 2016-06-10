@@ -1,11 +1,14 @@
 var app = require('../../../server/server');
 var moment = require('moment-timezone');
 var async = require('async');
+var _ = require('lodash');
 var ApiError = require('../../../server/lib/error/Api-error');
 var mailer = require('../../../server/lib/mailer');
 var resources = require('../additional/resources');
+var EVIDENCESUPPORTEDTYPES = resources.evidenceSupportedTypes;
 var PENALTYAMOUNTS = resources.penaltyAmounts;
 var GROUPTYPES = resources.groupTypes;
+var USER_WHITE_LIST_FIELDS = require('../customer/customer.json').whiteListFields;
 
 module.exports = function(Group) {
 	var groupTypesWhiteList = Object.keys(GROUPTYPES).map(function (item) {
@@ -15,7 +18,18 @@ module.exports = function(Group) {
 	Group.validatesPresenceOf('_ownerId');
 	Group.validatesInclusionOf('type', {in: groupTypesWhiteList});
 	Group.validatesInclusionOf('penalty', {in: PENALTYAMOUNTS});
-	Group.validate('maxMembers', function(err) { if (this.maxMembers < 1) err(); });
+	Group.validatesNumericalityOf('maxMembers', {int: true});
+	Group.validate('maxMembers', function(err) {
+		if (this.maxMembers < 1 || this.maxMembers < currentNumberMembers(this)) err();
+	});
+	Group.validatesNumericalityOf('joiningFee', {int: true});
+	Group.validatesNumericalityOf('quarterlyFee', {int: true});
+	Group.validatesNumericalityOf('monthlyFee', {int: true});
+	Group.validatesNumericalityOf('yearlyFee', {int: true});
+	Group.validate('joiningFee', function(err) {if (this.joiningFee < 0) err();});
+	Group.validate('quarterlyFee', function(err) {if (this.quarterlyFee < 0) err();});
+	Group.validate('monthlyFee', function(err) {if (this.monthlyFee < 0) err();});
+	Group.validate('yearlyFee', function(err) {if (this.yearlyFee < 0) err();});
 
 	// Disable unnecessary methods
 	Group.disableRemoteMethod('upsert', true);
@@ -27,8 +41,32 @@ module.exports = function(Group) {
 	Group.disableRemoteMethod('__destroyById__Members', false);
 	Group.disableRemoteMethod('__link__Members', false);
 	Group.disableRemoteMethod('__create__SessionConf', false);
+	Group.disableRemoteMethod('__get__SessionConf', false);
+	Group.disableRemoteMethod('__update__SessionConf', false);
 	Group.disableRemoteMethod('__destroy__SessionConf', false);
 
+	// Upload avatar request
+	Group.remoteMethod('uploadAvatar', {
+		isStatic: false,
+		description: 'Upload group img.',
+		http: {path: '/upload-avatar', verb: 'post'},
+		accepts: [
+			{arg: 'req', type: 'object', 'http': {source: 'req'}},
+			{arg: 'res', type: 'object', 'http': {source: 'res'}}
+		],
+		returns: {type: 'object', root: true}
+	});
+	// Upload attachment request
+	Group.remoteMethod('uploadAttachment', {
+		isStatic: false,
+		description: 'Upload group information/application forms.',
+		http: {path: '/upload-attachment', verb: 'post'},
+		accepts: [
+			{arg: 'req', type: 'object', 'http': {source: 'req'}},
+			{arg: 'res', type: 'object', 'http': {source: 'res'}}
+		],
+		returns: {type: 'object', root: true}
+	});
 	// Change group owner request
 	Group.remoteMethod('changeGroupOwner', {
 		isStatic: false,
@@ -175,6 +213,101 @@ module.exports = function(Group) {
 		],
 		returns: {type: 'object', root: true}
 	});
+
+	Group.prototype.uploadAvatar = function(req, res, next) {
+		var Container = Group.app.models.GroupAvatars;
+		var group = this;
+		var groupId = group._id.toString();
+
+		// if don't have file
+		if (!req._readableState.length) return next(ApiError.incorrectParam('file'));
+
+		Container.getContainers(function (err, containers) {
+			if (err) return next(err);
+
+			if (containers.some(function(c) {return c.name === groupId;})) {
+				Container.destroyContainer(groupId, createContainerSaveFile);
+			} else {
+				createContainerSaveFile(null);
+			}
+		});
+
+		function createContainerSaveFile(err) {
+			if (err) return next(err);
+
+			Container.createContainer({ name: groupId }, function(err, c) {
+				if (err) return next(err);
+
+				var options = {
+					container: groupId,
+					allowedContentTypes: function(file) {
+						// if file type incorect return array with non existent mime types
+						if (!file.type.includes('image/')) return ['image/*'];
+					}
+					//maxFileSize: can pass a function(file, req, res) or number, default is 10 MB
+					//acl: can pass a function(file, req, res)
+				};
+
+				Container.upload(req, res, options, setAvatarField);
+			});
+		}
+
+		function setAvatarField(err, filesObj) {
+			if (err) return next(err);
+
+			var fileName = filesObj.files.file[0].name;
+
+			group.updateAttributes({
+				avatar: '/GroupAvatars/' + groupId + '/download/' + fileName
+			}, next);
+		}
+	};
+
+	Group.prototype.uploadAttachment = function(req, res, next) {
+		var Container = Group.app.models.GroupAttachment;
+		var group = this;
+		var groupId = group._id.toString();
+
+		// if don't have file
+		if (!req._readableState.length) return next(ApiError.incorrectParam('file'));
+
+		Container.getContainers(function (err, containers) {
+			if (err) return next(err);
+
+			if (containers.some(function(c){return c.name === groupId;})) {
+				Container.destroyContainer(groupId, createContainerSaveFile);
+			} else {
+				createContainerSaveFile(null);
+			}
+		});
+
+		function createContainerSaveFile(err) {
+			if (err) return next(err);
+
+			Container.createContainer({ name: groupId }, function(err, c) {
+				if (err) return next(err);
+
+				var options = {
+					container: groupId,
+					allowedContentTypes: [EVIDENCESUPPORTEDTYPES['.pdf']],
+					//maxFileSize: can pass a function(file, req, res) or number, default is 10 MB
+					//acl: can pass a function(file, req, res)
+				};
+
+				Container.upload(req, res, options, setAttachmentField);
+			});
+		}
+
+		function setAttachmentField(err, filesObj) {
+			if (err) return next(err);
+
+			var fileName = filesObj.files.file[0].name;
+
+			group.updateAttributes({
+				attachment: '/GroupAttachment/' + groupId + '/download/' + fileName
+			}, next);
+		}
+	};
 
 	Group.prototype.changeGroupOwner = function(ownerId, next) {
 		var Customer = Group.app.models.Customer;
@@ -363,7 +496,8 @@ module.exports = function(Group) {
 			description: this.description,
 			penalty: this.penalty,
 			createdAt: this.createdAt,
-			sessionConf: this.sessionConf
+			sessionConf: this.sessionConf,
+			avatar: this.avatar
 		});
 	};
 
@@ -686,38 +820,34 @@ module.exports = function(Group) {
 	};
 
 	// Deny set manualy id, memberIds, nextSessionId, lastSessionId fields
-	Group.beforeRemote('create', excludeIdMemberIdsSessionsFields);
-	Group.beforeRemote('prototype.updateAttributes', excludeIdMemberIdsSessionsFields);
+	Group.beforeRemote('create', excludeIdMemberIdsAvatarSessionsFields);
+	Group.beforeRemote('prototype.updateAttributes', excludeIdMemberIdsAvatarSessionsFields);
 	// Make sure _ownerId set properly
 	Group.beforeRemote('create', setOwnerId);
 	Group.beforeRemote('prototype.updateAttributes', setOwnerId);
-	// Validate roundLength field
-	Group.beforeRemote('create', validateRoundLengthField);
-	Group.beforeRemote('prototype.updateAttributes', validateRoundLengthField);
-	Group.beforeRemote('prototype.__update__SessionConf', validateRoundLengthField);
 	// Create next session for group
 	Group.afterRemote('create', createNextSession);
 	Group.afterRemote('prototype.updateAttributes', updateNextSession);
-	Group.afterRemote('prototype.__update__SessionConf', updateNextSession);
 	// Delete next session after delete group
 	Group.afterRemote('deleteById', deleteNextSession);
 	// Delete related goals after delete group
 	Group.afterRemote('deleteById', deleteRelatedGoals);
-	// Validate maxMembers field
-	Group.beforeRemote('prototype.updateAttributes', validateMaxMembersField);
 	// Allow members to leave the group
 	Group.beforeRemote('prototype.__unlink__Members', allowMembersLeaveGroup);
 	// Delete member's goals which related to group
-	Group.afterRemote('prototype.__unlink__Members', deleteGoalsRelatedGroup);
+	Group.afterRemote('prototype.__unlink__Members', deleteRelatedGoalsGroup);
 	// Exclude private group(s) where user don't owner or member
 	Group.afterRemote('find', excludePrivateGroups);
-	Group.afterRemote('findOne', excludePrivateGroups);
 	Group.afterRemote('findById', excludePrivateGroups);
+	Group.afterRemote('findOne', excludePrivateGroups);
+	// Hide members if "hideMembers" option select
+	Group.afterRemote('find', hideMembers);
+	Group.afterRemote('findById', hideMembers);
+	Group.afterRemote('findOne', hideMembers);
 	// Return private group only for owner and members
 	Group.beforeRemote('prototype.__get__LastSession', checkIsGroupMember);
 	Group.beforeRemote('prototype.__get__NextSession', checkIsGroupMember);
 	Group.beforeRemote('prototype.__count__Members', checkIsGroupMember);
-	Group.beforeRemote('prototype.__get__SessionConf', checkIsGroupMember);
 	Group.beforeRemote('prototype.__get__Owner', checkIsGroupMember);
 	Group.beforeRemote('prototype.__get__Members', checkIsGroupMember);
 	Group.beforeRemote('prototype.__findById__Members', checkIsGroupMember);
@@ -726,9 +856,11 @@ module.exports = function(Group) {
 	Group.afterRemote('prototype.__get__Members', excludeFields);
 	Group.afterRemote('prototype.__findById__Members', excludeFields);
 
-	function excludeIdMemberIdsSessionsFields(ctx, group, next) {
+	function excludeIdMemberIdsAvatarSessionsFields(ctx, group, next) {
 		delete ctx.req.body._id;
 		delete ctx.req.body._memberIds;
+		delete ctx.req.body.avatar;
+		delete ctx.req.body.attachment;
 		delete ctx.req.body._nextSessionId;
 		delete ctx.req.body._lastSessionId;
 		next();
@@ -736,30 +868,6 @@ module.exports = function(Group) {
 
 	function setOwnerId(ctx, group, next) {
 		ctx.req.body._ownerId = ctx.req.accessToken.userId;
-		next();
-	}
-
-	function validateRoundLengthField(ctx, group, next) {
-		var methodName = ctx.req.remotingContext.method.name;
-		var isUpdateSessConf = methodName === '__update__SessionConf';
-		var sessionConf = isUpdateSessConf ? ctx.req.body : ctx.req.body.sessionConf || {};
-		var roundLength = sessionConf.roundLength;
-
-		if (!Array.isArray(roundLength)) return next();
-
-		var minLengthRound = 0;
-
-		var round1 = roundLength[0] >= minLengthRound ? Number(roundLength[0]) : minLengthRound;
-		var round2PartA = roundLength[1] >= minLengthRound ? Number(roundLength[1]) : minLengthRound;
-		var round2PartB = roundLength[2] >= minLengthRound ? Number(roundLength[2]) : minLengthRound;
-		var round3 = roundLength[3] >= minLengthRound ? Number(roundLength[3]) : minLengthRound;
-
-		if (isUpdateSessConf) {
-			ctx.req.body.roundLength = [round1, round2PartA, round2PartB, round3];
-		} else {
-			ctx.req.body.sessionConf.roundLength = [round1, round2PartA, round2PartB, round3];
-		}
-
 		next();
 	}
 
@@ -805,29 +913,15 @@ module.exports = function(Group) {
 	}
 
 	function deleteNextSession(ctx, group, next) {
-		var Session = Group.app.models.Session;
 		var groupId = ctx.args.id;
-		var now = new Date(moment().utc().format()).getTime();
 
-		Session.destroyAll({
-			and: [{_groupId: groupId}, {startAt: {gt: now}}]
-		}, next);
+		Group.app.models.Session.destroyAll({_groupId: groupId}, next);
 	}
 
 	function deleteRelatedGoals(ctx, group, next) {
-		var Goal = Group.app.models.Goal;
 		var groupId = ctx.args.id;
 
-		Goal.destroyAll({ _groupId: groupId }, next);
-	}
-
-	function validateMaxMembersField(ctx, group, next) {
-		if (ctx.req.body.maxMembers &&
-			ctx.req.body.maxMembers < currentNumberMembers(ctx.instance)) {
-			return next(ApiError.incorrectParam('maxMembers'));
-		}
-
-		next();
+		Group.app.models.Goal.destroyAll({ _groupId: groupId }, next);
 	}
 
 	function allowMembersLeaveGroup(ctx, group, next) {
@@ -848,7 +942,7 @@ module.exports = function(Group) {
 		next();
 	}
 
-	function deleteGoalsRelatedGroup(ctx, group, next) {
+	function deleteRelatedGoalsGroup(ctx, group, next) {
 		var group = ctx.instance;
 		var delUserId = ctx.req.params.fk;
 
@@ -871,8 +965,28 @@ module.exports = function(Group) {
 					i--;
 				}
 			}
-		} else if (ctx.result.private && !isOwnerOrMember(senderId, ctx.result)) {
+		} else if (ctx.result && ctx.result.private && !isOwnerOrMember(senderId, ctx.result)) {
 			return next(new ApiError(403));
+		}
+
+		next();
+	}
+
+	function hideMembers(ctx, group, next) {
+		var senderId = ctx.req.accessToken.userId;
+
+		if (Array.isArray(ctx.result)) {
+			var groups = ctx.result;
+
+			for (var i = 0; i < groups.length; i++) {
+				if (!isOwnerOrMember(senderId, groups[i]) && groups[i].hideMembers) {
+					groups[i] = excludeMembersFields(groups[i]);
+				}
+			}
+		} else if (ctx.result && ctx.result.hideMembers) {
+			if (!isOwnerOrMember(senderId, ctx.result) && ctx.result.hideMembers) {
+				ctx.result = excludeMembersFields(ctx.result);
+			}
 		}
 
 		next();
@@ -918,7 +1032,7 @@ module.exports = function(Group) {
 		Group.app.models.Session.findById(group._nextSessionId, function(err, session) {
 			if (err) return cb(err);
 			if (!session) return cb(new ApiError(404, 'Session not found.'));
-			if (session._facilitatorId) return next(new ApiError(403, 'During going session!'));
+			if (session._facilitatorId) return cb(new ApiError(403, 'During going session!'));
 
 			startAt = startAt || calculatedStartAtDate(
 				group.sessionConf.frequencyType,
@@ -989,10 +1103,9 @@ function isOwnerOrMember(userId, group) {
 }
 
 function changeModelByWhiteList(resource) {
-	var WHITE_LIST_FIELDS = ['_id', 'firstName', 'lastName', 'timeZone', 'description', 'avatar', 'social'];
 	var destination = {};
 
-	WHITE_LIST_FIELDS.forEach(function(field) {
+	USER_WHITE_LIST_FIELDS.forEach(function(field) {
 		destination[field] = resource[field];
 	});
 
@@ -1098,4 +1211,13 @@ function getDateByFreqTypeAndWeekday(freqType, day) {
 		d.setDate(d.getDate() + 7);
 		return d;
 	}
+}
+
+function excludeMembersFields(group) {
+	group = JSON.parse(JSON.stringify(group));
+
+	group._memberIds = [];
+	if (group.Members) group.Members = [];
+
+	return group;
 }

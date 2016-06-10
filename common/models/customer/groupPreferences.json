@@ -1,0 +1,46 @@
+{
+	"name": "GroupPreferences",
+	"base": "TransientModel",
+	"strict": "throw",
+	"options": {
+		"validateUpsert": true
+	},
+	"properties": {
+		"type": {
+			"type": "Number",
+			"default": 5
+		},
+		"joiningFee": {
+			"type": ["Number"],
+			"default": [0, 0]
+		},
+		"monthlyFee": {
+			"type": ["Number"],
+			"default": [0, 0]
+		},
+		"yearlyFee": {
+			"type": ["Number"],
+			"default": [0, 0]
+		},
+		"penaltyFee": {
+			"type": ["Number"],
+			"default": [0, 0]
+		},
+		"members": {
+			"type": ["Number"],
+			"default": [1, 1]
+		},
+		"availableTime": {
+			"type": ["String"],
+			"default": ["0.00", "23.30"]
+		},
+		"languages": {
+			"type": ["String"],
+			"default": ["en"]
+		}
+	},
+	"validations": [],
+	"relations": {},
+	"acls": [],
+	"methods": {}
+}
