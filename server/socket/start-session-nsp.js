@@ -22,7 +22,7 @@ module.exports = function(io) {
 function onJoin(roomName, callback) {
 	var socket = this;
 	var Group = app.models.Group;
-	var userId = socket.user._id.toString();
+	var userId = socket.user._id;
 	var groupFilter = {
 		where: {
 			_id: roomName,

@@ -28,7 +28,7 @@
 		},
 		"members": {
 			"type": ["Number"],
-			"default": [1, 1]
+			"default": [1, 12]
 		},
 		"availableTime": {
 			"type": ["String"],
