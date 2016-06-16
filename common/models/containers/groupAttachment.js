@@ -1,12 +1,12 @@
-module.exports = function(GroupAttachment) {
-	GroupAttachment.disableRemoteMethod('getContainers', true);
-	GroupAttachment.disableRemoteMethod('createContainer', true);
-	GroupAttachment.disableRemoteMethod('destroyContainer', true);
-	GroupAttachment.disableRemoteMethod('getContainer', true);
-	GroupAttachment.disableRemoteMethod('uploadStream', true);
-	GroupAttachment.disableRemoteMethod('downloadStream', true);
-	GroupAttachment.disableRemoteMethod('getFiles', true);
-	GroupAttachment.disableRemoteMethod('getFile', true);
-	GroupAttachment.disableRemoteMethod('removeFile', true);
-	GroupAttachment.disableRemoteMethod('upload', true);
+module.exports = function(GroupAttachments) {
+	GroupAttachments.disableRemoteMethod('getContainers', true);
+	GroupAttachments.disableRemoteMethod('createContainer', true);
+	GroupAttachments.disableRemoteMethod('destroyContainer', true);
+	GroupAttachments.disableRemoteMethod('getContainer', true);
+	GroupAttachments.disableRemoteMethod('uploadStream', true);
+	GroupAttachments.disableRemoteMethod('downloadStream', true);
+	GroupAttachments.disableRemoteMethod('getFiles', true);
+	GroupAttachments.disableRemoteMethod('getFile', true);
+	GroupAttachments.disableRemoteMethod('removeFile', true);
+	GroupAttachments.disableRemoteMethod('upload', true);
 };

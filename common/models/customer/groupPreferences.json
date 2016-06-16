@@ -12,19 +12,19 @@
 		},
 		"joiningFee": {
 			"type": ["Number"],
-			"default": [0, 0]
+			"default": [0, 10000]
 		},
 		"monthlyFee": {
 			"type": ["Number"],
-			"default": [0, 0]
+			"default": [0, 10000]
 		},
 		"yearlyFee": {
 			"type": ["Number"],
-			"default": [0, 0]
+			"default": [0, 100000]
 		},
 		"penaltyFee": {
 			"type": ["Number"],
-			"default": [0, 0]
+			"default": [0, 5000]
 		},
 		"members": {
 			"type": ["Number"],

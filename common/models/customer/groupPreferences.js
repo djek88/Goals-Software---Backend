@@ -28,7 +28,7 @@ module.exports = function(GroupPreferences) {
 	GroupPreferences.validate('yearlyFee', function(err) {
 		checkMinMax(this.yearlyFee, 0, 100000, err);}, {message: 'min >= 0, max >= min, max <= 100000!'});
 	GroupPreferences.validate('penaltyFee', function(err) {
-		checkMinMax(this.penaltyFee, 0, 10000, err);}, {message: 'min >= 0, max >= min, max <= 10000!'});
+		checkMinMax(this.penaltyFee, 0, 5000, err);}, {message: 'min >= 0, max >= min, max <= 5000!'});
 	GroupPreferences.validate('members', function(err) {
 		checkMinMax(this.members, 1, 1000, err);}, {message: 'min >= 1, max >= min, max <= 1000!'});
 

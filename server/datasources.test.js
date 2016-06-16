@@ -32,10 +32,10 @@ module.exports = {
 		"provider": "filesystem",
 		"root": "./test/storage/goalEvidences"
 	},
-	"groupAttachmentStorage": {
-		"name": "groupAttachmentStorage",
+	"groupAttachmentsStorage": {
+		"name": "groupAttachmentsStorage",
 		"connector": "loopback-component-storage",
 		"provider": "filesystem",
-		"root": "./test/storage/groupAttachment"
+		"root": "./test/storage/groupAttachments"
 	}
 };

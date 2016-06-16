@@ -79,8 +79,8 @@
 		"dataSource": "goalEvidencesStorage",
 		"public": true
 	},
-	"GroupAttachment": {
-		"dataSource": "groupAttachmentStorage",
+	"GroupAttachments": {
+		"dataSource": "groupAttachmentsStorage",
 		"public": true
 	},
 	"Additional": {

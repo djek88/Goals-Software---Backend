@@ -1,5 +1,5 @@
 {
-	"name": "GroupAttachment",
+	"name": "GroupAttachments",
 	"base": "Model",
 	"properties": {},
 	"validations": [],

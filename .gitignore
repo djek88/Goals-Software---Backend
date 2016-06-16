@@ -1,21 +1,21 @@
 node_modules
 server/storage/customerAvatars/*
 server/storage/goalEvidences/*
-server/storage/groupAttachment/*
+server/storage/groupAttachments/*
 server/storage/groupAvatars/*
 
 !server/storage/customerAvatars/default-avatar
 !server/storage/goalEvidences/default-folder
-!server/storage/groupAttachment/default-folder
+!server/storage/groupAttachments/default-folder
 !server/storage/groupAvatars/default-avatar
 
 
 test/storage/customerAvatars/*
 test/storage/goalEvidences/*
-test/storage/groupAttachment/*
+test/storage/groupAttachments/*
 test/storage/groupAvatars/*
 
 !test/storage/customerAvatars/default-avatar
 !test/storage/goalEvidences/default-folder
-!test/storage/groupAttachment/default-folder
+!test/storage/groupAttachments/default-folder
 !test/storage/groupAvatars/default-avatar

@@ -264,7 +264,7 @@ module.exports = function(Group) {
 	};
 
 	Group.prototype.uploadAttachment = function(req, res, next) {
-		var Container = Group.app.models.GroupAttachment;
+		var Container = Group.app.models.GroupAttachments;
 		var group = this;
 		var groupId = group._id.toString();
 
@@ -304,7 +304,7 @@ module.exports = function(Group) {
 			var fileName = filesObj.files.file[0].name;
 
 			group.updateAttributes({
-				attachment: '/GroupAttachment/' + groupId + '/download/' + fileName
+				attachment: '/GroupAttachments/' + groupId + '/download/' + fileName
 			}, next);
 		}
 	};
@@ -497,7 +497,8 @@ module.exports = function(Group) {
 			penalty: this.penalty,
 			createdAt: this.createdAt,
 			sessionConf: this.sessionConf,
-			avatar: this.avatar
+			avatar: this.avatar,
+			attachment: this.attachment
 		});
 	};
 
