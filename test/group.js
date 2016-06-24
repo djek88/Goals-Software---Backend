@@ -13,6 +13,7 @@ var Session = server.models.Session;
 var usersData = require('./resources/users');
 var routeHelper = require('./lib/route-helper')(Group);
 var createSession = require('../common/models/group/group').createSession;
+var isOwnerOrMember = require('../common/models/group/group').isOwnerOrMember;
 var api;
 
 describe('Group model', function() {
@@ -120,10 +121,12 @@ describe('Group model', function() {
 				});
 		});
 
-		it('beforeRemote hook "excludeIdMemberIdsSessionsFields"', function(done) {
+		it('beforeRemote hook "excludeIdMemberIdsAvatarAttachmentSessionsFields"', function(done) {
 			var extraData = {
 				_id: 'wrongId',
 				_memberIds: [fMember._id, sMember._id],
+				avatar: 'wrongAvatar',
+				attachment: 'wrongAttachment',
 				_nextSessionId: 'wrongId',
 				_lastSessionId: 'wrongId'
 			};
@@ -238,84 +241,156 @@ describe('Group model', function() {
 	});
 
 	describe('find', function() {
-		var privateGroups = 43;
-		var publicGroups = 88;
-		var privateGroupsWhereIsOwner = 22;
-		var privateGroupsWhereIsMember = 77;
+		describe('afterRemote hook "excludePrivateGroups"', function() {
+			var privateGroups = 43;
+			var publicGroups = 88;
+			var privateGroupsWhereIsOwner = 22;
+			var privateGroupsWhereIsMember = 77;
 
-		beforeEach(function(done) {
-			Group.destroyAll(function(err) {
-				if (err) return done(err);
+			before(function(done) {
+				Group.destroyAll(function(err) {
+					if (err) return done(err);
 
-				async.parallel([
-					// create private groups
-					function(cb) {
-						async.forEachOf(new Array(privateGroups), function(item, key, callback) {
-							Group.create({
-								name: 'name',
-								_ownerId: notMember._id,
-								private: true
-							}, callback);
-						}, cb);
-					},
-					// create public groups
-					function(cb) {
-						async.forEachOf(new Array(publicGroups), function(item, key, callback) {
-							Group.create({
-								name: 'name',
-								_ownerId: notMember._id,
-								private: false
-							}, callback);
-						}, cb);
-					},
-					// create private groups where is owner
-					function(cb) {
-						async.forEachOf(new Array(privateGroupsWhereIsOwner), function(item, key, callback) {
-							Group.create({
-								name: 'name',
-								_ownerId: groupOwner._id,
-								private: true
-							}, callback);
-						}, cb);
-					},
-					// create private groups where is member
-					function(cb) {
-						async.forEachOf(new Array(privateGroupsWhereIsMember), function(item, key, callback) {
-							Group.create({
-								name: 'name',
-								_ownerId: notMember._id,
-								_memberIds: [groupOwner._id],
-								maxMembers: 2,
-								private: true
-							}, callback);
-						}, cb);
-					}
-				], done);
+					async.parallel([
+						// create private groups
+						function(cb) {
+							async.each(new Array(privateGroups), function(item,callback) {
+								Group.create({
+									name: 'name',
+									_ownerId: notMember._id,
+									private: true
+								}, callback);
+							}, cb);
+						},
+						// create public groups
+						function(cb) {
+							async.each(new Array(publicGroups), function(item, callback) {
+								Group.create({
+									name: 'name',
+									_ownerId: notMember._id,
+									private: false
+								}, callback);
+							}, cb);
+						},
+						// create private groups where is owner
+						function(cb) {
+							async.each(new Array(privateGroupsWhereIsOwner), function(item, callback) {
+								Group.create({
+									name: 'name',
+									_ownerId: groupOwner._id,
+									private: true
+								}, callback);
+							}, cb);
+						},
+						// create private groups where is member
+						function(cb) {
+							async.each(new Array(privateGroupsWhereIsMember), function(item, callback) {
+								Group.create({
+									name: 'name',
+									_ownerId: notMember._id,
+									_memberIds: [groupOwner._id],
+									maxMembers: 2,
+									private: true
+								}, callback);
+							}, cb);
+						}
+					], done);
+				});
+			});
+
+			it('success', function(done) {
+				api
+					.get(routeHelper('find', ownerToken))
+					.send({include: 'Members'})
+					.expect(200, function(err, res) {
+						if(err) return done(err);
+
+						assert.equal(
+							publicGroups + privateGroupsWhereIsOwner + privateGroupsWhereIsMember,
+							res.body.length
+						);
+
+						// all groups belong to the group owner
+						for (var i = res.body.length - 1; i >= 0; i--) {
+							var group = res.body[i];
+
+							if (group.private) {
+								assert.include(group._memberIds.concat(group._ownerId), groupOwner._id);
+							}
+						}
+
+						done();
+					});
 			});
 		});
 
-		it('afterRemote hook "excludePrivateGroups"', function(done) {
-			api
-				.get(routeHelper('find', ownerToken))
-				.expect(200, function(err, res) {
-					if(err) return done(err);
+		describe('afterRemote hook "hideMembers"', function() {
+			before(function(done) {
+				Group.destroyAll(function(err) {
+					if (err) return done(err);
 
-					assert.equal(
-						publicGroups + privateGroupsWhereIsOwner + privateGroupsWhereIsMember,
-						res.body.length
-					);
-
-					// all goals belong to the group owner
-					for (var i = res.body.length - 1; i >= 0; i--) {
-						var group = res.body[i];
-
-						if (group.private) {
-							assert.include(group._memberIds.concat(group._ownerId), groupOwner._id);
+					async.parallel([
+						// create public groups with "hideMembers" = true, where is not member or owner
+						function(cb) {
+							async.each(new Array(100), function(item, callback) {
+								Group.create({
+									name: 'name',
+									private: false,
+									_ownerId: notMember._id,
+									_memberIds: [fMember._id, sMember._id],
+									hideMembers: true,
+									maxMembers: 3,
+								}, callback);
+							}, cb);
+						},
+						// create public groups with "hideMembers" = true, where is owner
+						function(cb) {
+							async.each(new Array(100), function(item, callback) {
+								Group.create({
+									name: 'name',
+									private: false,
+									_ownerId: groupOwner._id,
+									_memberIds: [fMember._id, sMember._id],
+									hideMembers: true,
+									maxMembers: 3,
+								}, callback);
+							}, cb);
+						},
+						// create public groups with "hideMembers" = true, where is member
+						function(cb) {
+							async.each(new Array(100), function(item, callback) {
+								Group.create({
+									name: 'name',
+									private: false,
+									_ownerId: notMember._id,
+									_memberIds: [groupOwner._id, fMember._id],
+									hideMembers: true,
+									maxMembers: 3,
+								}, callback);
+							}, cb);
 						}
-					}
-
-					done();
+					], done);
 				});
+			});
+
+			it('success', function(done) {
+				api
+					.get(routeHelper('find', ownerToken, {include: 'Members'}))
+					.expect(200, function(err, res) {
+						if(err) return done(err);
+
+						for (var i = res.body.length - 1; i >= 0; i--) {
+							var group = res.body[i];
+
+							if (!isOwnerOrMember(groupOwner._id, group)) {
+								assert.lengthOf(group._memberIds, 0);
+								assert.lengthOf(group.Members, 0);
+							}
+						}
+
+						done();
+					});
+			});
 		});
 	});
 
@@ -331,7 +406,7 @@ describe('Group model', function() {
 		beforeEach(function(done) {
 			async.series([
 				Group.destroyAll.bind(Group),
-				// create goal
+				// create group
 				function(cb) {
 					Group.create(curGroup, function(err, result) {
 						if(err) return cb(err);
@@ -353,11 +428,16 @@ describe('Group model', function() {
 					private: false,
 					maxMembers: 10,
 					memberCanInvite: true,
+					joiningFee: 80,
+					quarterlyFee: 80,
+					monthlyFee: 80,
+					yearlyFee: 800,
+					hideMembers: true,
 					sessionConf: {
 						sheduled: true,
 						day: 1,
 						time: '1.00',
-						withoutFacilitator: false,
+						withoutFacilitator: true,
 						language: 'en',
 						offline: false,
 						timeZone: "Europe/Zaporozhye",
@@ -384,16 +464,23 @@ describe('Group model', function() {
 							assert.equal(newData.private, result.private);
 							assert.equal(newData.maxMembers, result.maxMembers);
 							assert.equal(newData.memberCanInvite, result.memberCanInvite);
+							assert.equal(newData.joiningFee, result.joiningFee);
+							assert.equal(newData.quarterlyFee, result.quarterlyFee);
+							assert.equal(newData.monthlyFee, result.monthlyFee);
+							assert.equal(newData.yearlyFee, result.yearlyFee);
+							assert.equal(newData.hideMembers, result.hideMembers);
 							assert.deepEqual(newData.sessionConf, result.sessionConf);
 							done();
 						});
 					});
 			});
 
-			it('beforeRemote hook "excludeIdMemberIdsSessionsFields"', function(done) {
+			it('beforeRemote hook "excludeIdMemberIdsAvatarAttachmentSessionsFields"', function(done) {
 				var newData = {
 					_id: 'wrongId',
 					_memberIds: ['wrongId', 'wrongId'],
+					avatar: 'wrongAvatar',
+					attachment: 'wrongAttachment',
 					_nextSessionId: 'wrongId',
 					_lastSessionId: 'wrongId'
 				};
@@ -411,6 +498,8 @@ describe('Group model', function() {
 
 							assert.notEqual(newData._id, result._id);
 							assert.notDeepEqual(newData._memberIds, result._memberIds);
+							assert.notEqual(newData.avatar, result.avatar);
+							assert.notEqual(newData.attachment, result.attachment);
 							assert.notEqual(newData._nextSessionId, result._nextSessionId);
 							assert.notEqual(newData._lastSessionId, result._lastSessionId);
 							done();
@@ -478,14 +567,14 @@ describe('Group model', function() {
 								session = modelToObj(newSession);
 
 								Group.updateAll({
-										_id: curGroup._id
-									}, {
-										sessionConf: {sheduled: true},
-										_nextSessionId: newSession._id
-									}, function(err, info) {
-										cb(err);
-										assert.equal(1, info.count);
-									});
+									_id: curGroup._id
+								}, {
+									sessionConf: {sheduled: true},
+									_nextSessionId: newSession._id
+								}, function(err, info) {
+									cb(err);
+									assert.equal(1, info.count);
+								});
 							});
 						},
 						// check if session updated
@@ -596,79 +685,185 @@ describe('Group model', function() {
 		});
 
 		describe('findById, findOne', function() {
-			// make group private
-			beforeEach(function(done) {
-				Group.updateAll({
-						_id: curGroup._id
-					}, {
-						private: true
-					},
-					function(err, info) {
-						done(err);
-						assert.equal(1, info.count);
+			describe('afterRemote hook "excludePrivateGroups"', function() {
+				// make group private
+				beforeEach(function(done) {
+					Group.updateAll({
+							_id: curGroup._id
+						}, {
+							private: true
+						},
+						function(err, info) {
+							done(err);
+							assert.equal(1, info.count);
+						});
+				});
+
+				describe('findById', function() {
+					it('success if owner', function(done) {
+						api
+							.get(routeHelper('findById', {id: curGroup._id}, ownerToken))
+							.expect(200, function(err, res) {
+								if (err) return done(err);
+
+								assert.equal(res.body._id, curGroup._id);
+								done();
+							});
 					});
+
+					it('success if member', function(done) {
+						api
+							.get(routeHelper('findById', {id: curGroup._id}, fMemberToken))
+							.expect(200, function(err, res) {
+								if (err) return done(err);
+
+								assert.equal(res.body._id, curGroup._id);
+								done();
+							});
+					});
+
+					it('forbidden if not member or owner', function(done) {
+						api
+							.get(routeHelper('findById', {id: curGroup._id}, notMemberToken))
+							.expect(403, done);
+					});
+				});
+
+				describe('findOne', function() {
+					it('success if owner', function(done) {
+						api
+							.get(routeHelper('findOne', ownerToken))
+							.send({where: {_id: curGroup._id}})
+							.expect(200, function(err, res) {
+								if (err) return done(err);
+
+								assert.equal(res.body._id, curGroup._id);
+								done();
+							});
+					});
+
+					it('success if member', function(done) {
+						api
+							.get(routeHelper('findOne', fMemberToken))
+							.send({where: {_id: curGroup._id}})
+							.expect(200, function(err, res) {
+								if (err) return done(err);
+
+								assert.equal(res.body._id, curGroup._id);
+								done();
+							});
+					});
+
+					it('forbidden if not member or owner', function(done) {
+						api
+							.get(routeHelper('findOne', notMemberToken))
+							.send({where: {_id: curGroup._id}})
+							.expect(403, done);
+					});
+				});
 			});
 
-			describe('findById afterRemote hook "excludePrivateGroups"', function(done) {
-				it('success if owner', function(done) {
-					api
-						.get(routeHelper('findById', {id: curGroup._id}, ownerToken))
-						.expect(200, function(err, res) {
-							if (err) return done(err);
-
-							assert.equal(res.body._id, curGroup._id);
-							done();
+			describe('afterRemote hook "hideMembers"', function() {
+				// hide group members
+				beforeEach(function(done) {
+					Group.updateAll({
+							_id: curGroup._id
+						}, {
+							hideMembers: true,
+							private: false
+						},
+						function(err, info) {
+							done(err);
+							assert.equal(1, info.count);
 						});
 				});
 
-				it('success if member', function(done) {
-					api
-						.get(routeHelper('findById', {id: curGroup._id}, fMemberToken))
-						.expect(200, function(err, res) {
-							if (err) return done(err);
+				describe('findById', function() {
+					it('not hide if owner', function(done) {
+						api
+							.get(routeHelper('findById', {id: curGroup._id}, ownerToken, {include: "Members"}))
+							.expect(200, function(err, res) {
+								if (err) return done(err);
 
-							assert.equal(res.body._id, curGroup._id);
-							done();
-						});
+								assert.deepEqual(res.body._memberIds, curGroup._memberIds);
+								assert.lengthOf(res.body.Members, curGroup._memberIds.length);
+								done();
+							});
+					});
+
+					it('not hide if member', function(done) {
+						api
+							.get(routeHelper('findById', {id: curGroup._id}, fMemberToken, {include: "Members"}))
+							.expect(200, function(err, res) {
+								if (err) return done(err);
+
+								assert.deepEqual(res.body._memberIds, curGroup._memberIds);
+								assert.lengthOf(res.body.Members, curGroup._memberIds.length);
+								done();
+							});
+					});
+
+					it('hide if not member', function(done) {
+						api
+							.get(routeHelper('findById', {id: curGroup._id}, notMemberToken, {include: "Members"}))
+							.expect(200, function(err, res) {
+								if (err) return done(err);
+
+								assert.deepEqual(res.body._memberIds, []);
+								assert.lengthOf(res.body.Members, 0);
+								done();
+							});
+					});
 				});
 
-				it('forbidden if not member or owner', function(done) {
-					api
-						.get(routeHelper('findById', {id: curGroup._id}, notMemberToken))
-						.expect(403, done);
-				});
-			});
+				describe('findOne', function() {
+					it('not hide if owner', function(done) {
+						api
+							.get(routeHelper('findOne', ownerToken, {
+								where: {_id: curGroup._id},
+								include: 'Members'
+							}))
+							.expect(200, function(err, res) {
+								if (err) return done(err);
 
-			describe('findOne afterRemote hook "excludePrivateGroups"', function(done) {
-				it('success if owner', function(done) {
-					api
-						.get(routeHelper('findOne', ownerToken))
-						.send({where: {_id: curGroup._id}})
-						.expect(200, function(err, res) {
-							if (err) return done(err);
+								assert.equal(res.body._id, curGroup._id);
+								assert.deepEqual(res.body._memberIds, curGroup._memberIds);
+								assert.lengthOf(res.body.Members, curGroup._memberIds.length);
+								done();
+							});
+					});
 
-							assert.equal(res.body._id, curGroup._id);
-							done();
-						});
-				});
+					it('not hide if member', function(done) {
+						api
+							.get(routeHelper('findOne', fMemberToken, {
+								where: {_id: curGroup._id},
+								include: 'Members'
+							}))
+							.expect(200, function(err, res) {
+								if (err) return done(err);
 
-				it('success if member', function(done) {
-					api
-						.get(routeHelper('findOne', fMemberToken))
-						.send({where: {_id: curGroup._id}})
-						.expect(200, function(err, res) {
-							if (err) return done(err);
+								assert.equal(res.body._id, curGroup._id);
+								assert.deepEqual(res.body._memberIds, curGroup._memberIds);
+								assert.lengthOf(res.body.Members, curGroup._memberIds.length);
+								done();
+							});
+					});
 
-							assert.equal(res.body._id, curGroup._id);
-							done();
-						});
-				});
+					it('hide if not member', function(done) {
+						api
+							.get(routeHelper('findOne', notMemberToken, {
+								where: {_id: curGroup._id},
+								include: 'Members'
+							}))
+							.expect(200, function(err, res) {
+								if (err) return done(err);
 
-				it('forbidden if not member or owner', function(done) {
-					api
-						.get(routeHelper('findOne', notMemberToken))
-						.send({where: {_id: curGroup._id}})
-						.expect(403, done);
+								assert.equal(res.body._id, curGroup._id);
+								assert.deepEqual(res.body._memberIds, []);
+								assert.lengthOf(res.body.Members, 0);
+								done();
+							});
+					});
 				});
 			});
 		});
@@ -681,7 +876,7 @@ describe('Group model', function() {
 						Session.destroyAll(function(err) {
 							if (err) return cb(err);
 
-							async.forEachOf(new Array(100), function(item, key, callback) {
+							async.each(new Array(100), function(item, callback) {
 								createSession(curGroup, callback);
 							}, cb);
 						});
@@ -691,7 +886,7 @@ describe('Group model', function() {
 						Goal.destroyAll(function(err) {
 							if (err) return cb(err);
 
-							async.forEachOf(new Array(100), function(item, key, callback) {
+							async.each(new Array(100), function(item, callback) {
 								Goal.create({
 									name: 'name',
 									_groupId: curGroup._id,
@@ -719,7 +914,7 @@ describe('Group model', function() {
 					});
 			});
 
-			it('deleteNextSession', function(done) {
+			it('afterRemote hook "deleteNextSession"', function(done) {
 				api
 					.delete(routeHelper('deleteById', {id: curGroup._id}, ownerToken))
 					.expect(200, function(err, res) {
@@ -734,7 +929,7 @@ describe('Group model', function() {
 					});
 			});
 
-			it('deleteRelatedGoals', function(done) {
+			it('afterRemote hook "deleteRelatedGoals"', function(done) {
 				api
 					.delete(routeHelper('deleteById', {id: curGroup._id}, ownerToken))
 					.expect(200, function(err, res) {
@@ -763,16 +958,60 @@ describe('Group model', function() {
 				});
 			});
 		});
+
+		describe.only('prototype.__unlink__Members', function() {
+			beforeEach(function(done) {
+				Goal.destroyAll(function(err) {
+					if (err) return done(err);
+
+					// create goals for each member
+					async.each([fMember, sMember], function(member, callback) {
+						async.each(new Array(50), function(item, cb) {
+							Goal.create({
+								name: 'name',
+								_groupId: curGroup._id,
+								_ownerId: member._id,
+								dueDate: Date.now() + 10*24*60*60*1000, // in 10 days
+							}, cb);
+						}, callback);
+					}, done);
+				});
+			});
+
+			it('unlink success', function(done) {
+				api
+					.delete(routeHelper('/:id/Members/rel/:fk', {
+						id: curGroup._id,
+						fk: sMember._id
+					}, sMemberToken))
+					.expect(204, function(err, res) {
+						if (err) return done(err);
+
+						Group.findById(curGroup._id, function(err, result) {
+							if (err) return done(err);
+
+							assert.isFalse(result._memberIds.some(function(id) {
+								return id === sMember._id;
+							}));
+							done();
+						});
+					});
+			});
+
+			it('beforeRemote hook "allowMembersLeaveGroup"', function(done) {
+				
+			});
+		});
 	});
 
-	function checkIsInstanceNotChanged(istance, done, err, res) {
+	function checkIsInstanceNotChanged(instance, done, err, res) {
 		if (err) return done(err);
 		var Model = this;
 
-		Model.findById(istance._id, function(err, result) {
+		Model.findById(instance._id, function(err, result) {
 			if (err) return done(err);
 
-			assert.deepEqual(istance, modelToObj(result));
+			assert.deepEqual(instance, modelToObj(result));
 			done();
 		});
 	}

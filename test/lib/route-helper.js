@@ -1,26 +1,34 @@
+var querystring = require('querystring');
+
 module.exports = function(Model) {
-	return function(routeName, params, token) {
+	return function(routeName, params, token, filterObj) {
+		routeName = routeName || null;
+		params = params || {};
+		token = token || '';
+		filterObj = filterObj || {};
+
+		if (typeof routeName !== 'string') {
+			throw new Error('Missing "routeName" parameter.')
+		}
+		if (typeof token === 'object') {
+			filterObj = token;
+			token = '';
+		}
 		if (typeof params === 'string') {
 			token = params;
-			params = {};
-		} else if (!params) {
 			params = {};
 		}
 
 		var prefix = Model.app.settings.restApiRoot + Model.sharedClass.http.path;
 		var method = Model.sharedClass._methods.filter(function(m) {
-			/*console.log(m.name, m.http.path);*/
-			return m.name === routeName
+			// console.log(m.name, m.http.path);
+			return m.name === routeName;
 		})[0];
+		method = method || {isStatic: true, http: {path: routeName}};
+
 		var path = prefix;
-
-		if (!method) throw new Error('Route "' + routeName + '" not found.');
-
-		if (!method.isStatic) {
-			path += '/:id' + method.http.path;
-		} else {
-			path += method.http.path;
-		}
+		path += !method.isStatic ? '/:id' : '';
+		path += method.http.path;
 
 		path = path.replace(/(:(\w+)?(\(.+?\))?(\?)?)/g, function(m, pFull, pName) {
 			if (!params.hasOwnProperty(pName) || !params[pName]) {
@@ -30,9 +38,10 @@ module.exports = function(Model) {
 			return params[pName];
 		});
 
-		if (token) {
-			path += '?access_token=' + token;
-		}
+		path += '?' + querystring.stringify({
+			access_token: token ? token : '',
+			filter: filterObj ? JSON.stringify(filterObj) : ''
+		});
 
 		return path;
 	};

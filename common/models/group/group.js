@@ -2,6 +2,7 @@ var app = require('../../../server/server');
 var moment = require('moment-timezone');
 var async = require('async');
 var _ = require('lodash');
+var qt = require('quickthumb');
 var ApiError = require('../../../server/lib/error/Api-error');
 var mailer = require('../../../server/lib/mailer');
 var resources = require('../additional/resources');
@@ -248,17 +249,28 @@ module.exports = function(Group) {
 					//acl: can pass a function(file, req, res)
 				};
 
-				Container.upload(req, res, options, setAvatarField);
+				Container.upload(req, res, options, function(err, filesObj) {
+					if (err) return next(err);
+
+					var file = filesObj.files.file[0];
+
+					if (file.type === 'image/gif') return setAvatarField(file);
+
+					var containerPath = Container.app.datasources.groupAvatarsStorage.settings.root;
+					var filePath = containerPath + '/' + file.container + '/' + file.name;
+
+					qt.convert({src: filePath, dst: filePath, height: 400}, function(err, path) {
+						if (err) return next(err);
+
+						setAvatarField(file);
+					});
+				});
 			});
 		}
 
-		function setAvatarField(err, filesObj) {
-			if (err) return next(err);
-
-			var fileName = filesObj.files.file[0].name;
-
+		function setAvatarField(file) {
 			group.updateAttributes({
-				avatar: '/GroupAvatars/' + groupId + '/download/' + fileName
+				avatar: '/GroupAvatars/' + file.container + '/download/' + file.name
 			}, next);
 		}
 	};
@@ -821,8 +833,8 @@ module.exports = function(Group) {
 	};
 
 	// Deny set manualy id, memberIds, nextSessionId, lastSessionId fields
-	Group.beforeRemote('create', excludeIdMemberIdsAvatarSessionsFields);
-	Group.beforeRemote('prototype.updateAttributes', excludeIdMemberIdsAvatarSessionsFields);
+	Group.beforeRemote('create', excludeIdMemberIdsAvatarAttachmentSessionsFields);
+	Group.beforeRemote('prototype.updateAttributes', excludeIdMemberIdsAvatarAttachmentSessionsFields);
 	// Make sure _ownerId set properly
 	Group.beforeRemote('create', setOwnerId);
 	Group.beforeRemote('prototype.updateAttributes', setOwnerId);
@@ -857,7 +869,7 @@ module.exports = function(Group) {
 	Group.afterRemote('prototype.__get__Members', excludeFields);
 	Group.afterRemote('prototype.__findById__Members', excludeFields);
 
-	function excludeIdMemberIdsAvatarSessionsFields(ctx, group, next) {
+	function excludeIdMemberIdsAvatarAttachmentSessionsFields(ctx, group, next) {
 		delete ctx.req.body._id;
 		delete ctx.req.body._memberIds;
 		delete ctx.req.body.avatar;
@@ -927,18 +939,14 @@ module.exports = function(Group) {
 
 	function allowMembersLeaveGroup(ctx, group, next) {
 		var group = ctx.instance;
-		var senderId = ctx.req.accessToken.userId.toString();
+		var senderId = ctx.req.accessToken.userId;
 		var delUserId = ctx.req.params.fk;
 
-		var senderIsOwner = senderId === group._ownerId.toString();
-		var isMember = group._memberIds.some(function(id) {
-			return id.toString() === delUserId;
-		});
+		var senderIsOwner = senderId === group._ownerId;
+		var isMember = group._memberIds.some(function(id) {return id === delUserId;});
 
 		if (!isMember) return next(new ApiError(404, 'Member not found in group'));
-		if (senderId !== delUserId && !senderIsOwner) {
-			return next(new ApiError(403));
-		}
+		if (senderId !== delUserId && !senderIsOwner) return next(new ApiError(403));
 
 		next();
 	}
@@ -1099,7 +1107,7 @@ function calculatedStartAtDate(freqType, day, timeZone, time) {
 
 function isOwnerOrMember(userId, group) {
 	return group._memberIds.concat(group._ownerId).some(function(id) {
-		return id.toString() === userId.toString();
+		return id === userId;
 	});
 }
 

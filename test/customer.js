@@ -1,4 +1,4 @@
-var fs = require('fs');
+/*var fs = require('fs');
 var assert = require('chai').assert;
 var async = require('async');
 var server = require('../server/server');
@@ -238,4 +238,4 @@ describe('Customer model', function() {
 
 function reset(instance, cb) {
 	instance.updateAttributes(instance, cb);
-}
+}*/

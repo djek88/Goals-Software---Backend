@@ -8,11 +8,6 @@ var SESSIONTIMETYPES = resources.sessionTimeTypes;
 module.exports = function(GroupPreferences) {
 	var minMaxFeeErrorMsg = 'Must contain only min and max value in array!';
 	var sessionTimeTypesWhiteList = Object.keys(SESSIONTIMETYPES);
-	var groupTypesWhiteList = Object.keys(GROUPTYPES).map(function (item) {
-		return Number(item);
-	});
-
-	GroupPreferences.validatesInclusionOf('type', {in: groupTypesWhiteList});
 
 	GroupPreferences.validatesLengthOf('joiningFee', {is: 2, message: {is: minMaxFeeErrorMsg}});
 	GroupPreferences.validatesLengthOf('monthlyFee', {is: 2, message: {is: minMaxFeeErrorMsg}});
@@ -34,6 +29,7 @@ module.exports = function(GroupPreferences) {
 
 	GroupPreferences.validate('penaltyFee', validatePenalty, {message: 'Must be in range: ' + PENALTYAMOUNTS.join(', ')});
 	GroupPreferences.validate('availableTime', validateAvailableTime, {message: 'Min < max, min and max must be in range: ' + sessionTimeTypesWhiteList.join(', ')});
+	GroupPreferences.validate('types', validateTypes, {message: 'Must inclusion of: ' + Object.keys(GROUPTYPES).join(', ')});
 	GroupPreferences.validate('languages', validateLanguages, {message: 'Must inclusion of: ' + languages.getAllLanguageCode().join(', ')});
 
 	function checkMinMax(minMaxArray, minPossible, maxPossible, err) {
@@ -60,6 +56,17 @@ module.exports = function(GroupPreferences) {
 		if (sessionTimeTypesWhiteList.indexOf(min) < 0 ||
 			sessionTimeTypesWhiteList.indexOf(max) < 0 ||
 			Number(max) < Number(min)) err();
+	}
+
+	function validateTypes(err) {
+		var availableTypes = Object.keys(GROUPTYPES).map(function(type) {
+			return Number(type);
+		});
+		this.types = _.uniq(this.types);
+
+		for (var i = this.types.length - 1; i >= 0; i--) {
+			if (availableTypes.indexOf(this.types[i]) === -1) return err();
+		}
 	}
 
 	function validateLanguages(err) {

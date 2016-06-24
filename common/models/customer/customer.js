@@ -1,6 +1,7 @@
 var http = require('http');
 var async = require('async');
 var moment = require('moment-timezone');
+var qt = require('quickthumb');
 var ApiError = require('../../../server/lib/error/Api-error');
 
 module.exports = function(Customer) {
@@ -91,17 +92,28 @@ module.exports = function(Customer) {
 					//acl: can pass a function(file, req, res)
 				};
 
-				Container.upload(req, res, options, setAvatarField);
+				Container.upload(req, res, options, function(err, filesObj) {
+					if (err) return next(err);
+
+					var file = filesObj.files.file[0];
+
+					if (file.type === 'image/gif') return setAvatarField(file);
+
+					var containerPath = Container.app.datasources.customerAvatarsStorage.settings.root;
+					var filePath = containerPath + '/' + file.container + '/' + file.name;
+
+					qt.convert({src: filePath, dst: filePath, height: 400}, function(err, path) {
+						if (err) return next(err);
+
+						setAvatarField(file);
+					});
+				});
 			});
 		}
 
-		function setAvatarField(err, filesObj) {
-			if (err) return next(err);
-
-			var fileName = filesObj.files.file[0].name;
-
+		function setAvatarField(file) {
 			customer.updateAttributes({
-				avatar: '/CustomerAvatars/' + customer._id + '/download/' + fileName
+				avatar: '/CustomerAvatars/' + file.container + '/download/' + file.name
 			}, next);
 		}
 	};
