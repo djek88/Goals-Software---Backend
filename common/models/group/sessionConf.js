@@ -53,9 +53,7 @@ module.exports = function(SessionConf) {
 
 	function validateCity(err) {
 		if (this.city) {
-			if (!this.country || !this.state ||
-				Object.keys(COUNTRIESDATA[this.country].states[this.state].cities)
-				.indexOf(this.city) === -1) {
+			if (!this.country || !this.state){
 				return err();
 			}
 		}
