@@ -1,4 +1,4 @@
-var fs = require('fs');
+/*var fs = require('fs');
 var _ = require('lodash');
 var assert = require('chai').assert;
 var async = require('async');
@@ -959,7 +959,7 @@ describe('Group model', function() {
 			});
 		});
 
-		describe.only('prototype.__unlink__Members', function() {
+		describe('prototype.__unlink__Members', function() {
 			beforeEach(function(done) {
 				Goal.destroyAll(function(err) {
 					if (err) return done(err);
@@ -998,9 +998,9 @@ describe('Group model', function() {
 					});
 			});
 
-			it('beforeRemote hook "allowMembersLeaveGroup"', function(done) {
+			// it('beforeRemote hook "allowMembersLeaveGroup"', function(done) {
 				
-			});
+			// });
 		});
 	});
 
@@ -1019,4 +1019,4 @@ describe('Group model', function() {
 	function modelToObj(model) {
 		return JSON.parse(JSON.stringify(model));
 	}
-});
+});*/

@@ -7,7 +7,7 @@
 2. Install [GIT](https://git-scm.com/downloads)
 3. Install [mongodb](https://www.mongodb.com/download-center?jmp=nav#community)
 5. Install node dependencies - ```npm install```
-6. Install imagemagick - ```apt-get install imagemagick```
+6. Install imagemagick - ```brew install imagemagick``` or ```apt-get install imagemagick```
 7. Run mongodb.
 8. Run application(web server on http://localhost:3443) for production -
 ```npm start prod```

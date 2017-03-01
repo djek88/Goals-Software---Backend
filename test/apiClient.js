@@ -5,6 +5,6 @@ before(function(done) {
 	module.exports = require('supertest')('http://localhost:3444');
 
 	setTimeout(function() {
-		done()
+		done();
 	}, 50);
 });
