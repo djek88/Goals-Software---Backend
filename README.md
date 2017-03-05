@@ -10,7 +10,7 @@
 6. Install imagemagick - ```brew install imagemagick``` or ```apt-get install imagemagick```
 7. Run mongodb.
 8. Run application(web server on http://localhost:3443) for production -
-```npm start prod```
+```npm run prod```
 
 ## Run web server for developing
 Run ``npm start`` command from project root folder (web server on http://localhost:3443).
