@@ -12,11 +12,7 @@ module.exports = {
 };
 
 function updateGroupAndSessAfterFinish(group, session, callback) {
-	// have bug, if couple sockets (users) at the same time disconnected,
-	// than this function call once or twice, hence couple once created new session.
-	if (group._lastSessionId && group._lastSessionId.toString() === session._id.toString()) {
-		return callback();
-	}
+	callback = callback || function() {};
 
 	async.series([
 		session.updateAttributes.bind(session, {state: [-1, -1, -1]}),
@@ -38,7 +34,11 @@ function updateGroupAndSessAfterFinish(group, session, callback) {
 				});
 			}
 		},
-		applyPenaltyForUsers.bind(null, group, session)
+		function(cb) {
+			if (group.sessionConf.offline) return cb();
+
+			applyPenaltyForUsers(group, session, cb);
+		}
 	], callback);
 }
 
@@ -71,8 +71,9 @@ function applyPenaltyForUsers(group, session, callback) {
 
 	function whoMissedSessionWithoutValidExcuse() {
 		var memberIds = group._memberIds.concat(group._ownerId);
+		var sessionParticipants = session._participantIds.concat(session._facilitatorId);
 		var whoMissedIds = memberIds.filter(function(mId) {
-			return !session._participantIds.some(function(pId) {return pId === mId;});
+			return !sessionParticipants.some(function(pId) {return pId === mId;});
 		});
 
 		return whoMissedIds.filter(isInvalidExcuse);

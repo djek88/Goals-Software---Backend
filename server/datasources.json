@@ -14,16 +14,28 @@
 		"name": "db",
 		"connector": "mongodb"
 	},
-	"avatarsStorage": {
-		"name": "avatarsStorage",
+	"customerAvatarsStorage": {
+		"name": "customerAvatarsStorage",
 		"connector": "loopback-component-storage",
 		"provider": "filesystem",
-		"root": "./server/storage/avatars"
+		"root": "./server/storage/customerAvatars"
 	},
-	"filesStorage": {
-		"name": "filesStorage",
+	"groupAvatarsStorage": {
+		"name": "groupAvatarsStorage",
 		"connector": "loopback-component-storage",
 		"provider": "filesystem",
-		"root": "./server/storage/files"
+		"root": "./server/storage/groupAvatars"
+	},
+	"goalEvidencesStorage": {
+		"name": "goalEvidencesStorage",
+		"connector": "loopback-component-storage",
+		"provider": "filesystem",
+		"root": "./server/storage/goalEvidences"
+	},
+	"groupAttachmentsStorage": {
+		"name": "groupAttachmentsStorage",
+		"connector": "loopback-component-storage",
+		"provider": "filesystem",
+		"root": "./server/storage/groupAttachments"
 	}
 }

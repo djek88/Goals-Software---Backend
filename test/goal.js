@@ -1,4 +1,4 @@
-var fs = require('fs');
+/*var fs = require('fs');
 var _ = require('lodash');
 var assert = require('chai').assert;
 var async = require('async');
@@ -8,6 +8,7 @@ var Customer = server.models.Customer;
 var AccessToken = server.models.AccessToken;
 var Group = server.models.Group;
 var Goal = server.models.Goal;
+var GoalEvidences = server.models.GoalEvidences;
 
 var usersData = require('./resources/users');
 var routeHelper = require('./lib/route-helper')(Goal);
@@ -22,6 +23,7 @@ describe('Goal model', function() {
 		name: 'firstTestGroup',
 		_ownerId: groupOwner._id,
 		_memberIds: [fMember._id, sMember._id],
+		maxMembers: 3,
 		sessionConf: {sheduled: false}
 	});
 
@@ -125,6 +127,7 @@ describe('Goal model', function() {
 			it('required authorization', function(done) {
 				api
 					.post(routeHelper('create'))
+					.send(curGoal)
 					.expect(401, goalNotExist.bind(null, curGoal, done));
 			});
 		});
@@ -303,7 +306,15 @@ describe('Goal model', function() {
 				it('required authorization', function(done) {
 					api
 						.put(routeHelper('updateAttributes', {id: curGoal._id}))
-						.expect(401, checkIsGoalChanged.bind(null, done));
+						.send({name: 'newName'})
+						.expect(401, checkIsInstanceNotChanged.bind(Goal, curGoal, done));
+				});
+
+				it('deny if not owner', function(done) {
+					api
+						.put(routeHelper('updateAttributes', {id: curGoal._id}, fMemberToken))
+						.send({name: 'newName'})
+						.expect(401, checkIsInstanceNotChanged.bind(Goal, curGoal, done));
 				});
 			});
 
@@ -437,7 +448,7 @@ describe('Goal model', function() {
 			});
 		});
 
-		describe('findById findOne', function() {
+		describe('findById, findOne', function() {
 			describe('findById afterRemote hook "checkIsOwnerOrGroupMember"', function(done) {
 				it('status 200', function(done) {
 					api
@@ -455,14 +466,14 @@ describe('Goal model', function() {
 			describe('findOne afterRemote hook "checkIsOwnerOrGroupMember"', function(done) {
 				it('status 200', function(done) {
 					api
-						.get(routeHelper('findOne', {id: curGoal._id}, ownerToken))
+						.get(routeHelper('findOne', ownerToken))
 						.send({where: {_id: curGoal._id}})
 						.expect(200, done);
 				});
 
 				it('status 403', function(done) {
 					api
-						.get(routeHelper('findOne', {id: curGoal._id}, notMemberToken))
+						.get(routeHelper('findOne', notMemberToken))
 						.send({where: {_id: curGoal._id}})
 						.expect(403, done);
 				});
@@ -475,7 +486,7 @@ describe('Goal model', function() {
 					api
 						.post(routeHelper('leaveFeedback', {id: curGoal._id}))
 						.send({feedback: 'feedback'})
-						.expect(401, checkIsGoalChanged.bind(null, done));
+						.expect(401, checkIsInstanceNotChanged.bind(Goal, curGoal, done));
 				});
 			});
 
@@ -501,14 +512,14 @@ describe('Goal model', function() {
 			it('require feedback', function(done) {
 				api
 					.post(routeHelper('leaveFeedback', {id: curGoal._id}, fMemberToken))
-					.expect(400, checkIsGoalChanged.bind(null, done));
+					.expect(400, checkIsInstanceNotChanged.bind(Goal, curGoal, done));
 			});
 
 			it('check is it group member', function(done) {
 				api
 					.post(routeHelper('leaveFeedback', {id: curGoal._id}, notMemberToken))
 					.send({feedback: 'feedback'})
-					.expect(403, checkIsGoalChanged.bind(null, done));
+					.expect(403, checkIsInstanceNotChanged.bind(Goal, curGoal, done));
 			});
 		});
 
@@ -517,13 +528,13 @@ describe('Goal model', function() {
 				it('required authorization', function(done) {
 					api
 						.get(routeHelper('notifyGroupMembers', {id: curGoal._id}))
-						.expect(401, isNotChangedState.bind(null, done));
+						.expect(401, checkIsInstanceNotChanged.bind(Goal, curGoal, done));
 				});
 
 				it('deny if not owner', function(done) {
 					api
 						.get(routeHelper('notifyGroupMembers', {id: curGoal._id}, fMemberToken))
-						.expect(401, isNotChangedState.bind(null, done));
+						.expect(401, checkIsInstanceNotChanged.bind(Goal, curGoal, done));
 				});
 			});
 
@@ -559,38 +570,402 @@ describe('Goal model', function() {
 							});
 					},
 					function(cb) {
-						api
-							.get(routeHelper('notifyGroupMembers', {id: curGoal._id}, ownerToken))
-							.expect(403, isNotChangedState.bind(null, done));
+						Goal.findById(curGoal._id, function(err, result) {
+							if (err) return cb(err);
+
+							api
+								.get(routeHelper('notifyGroupMembers', {id: curGoal._id}, ownerToken))
+								.expect(403, checkIsInstanceNotChanged.bind(Goal, modelToObj(result), done));
+						});
 					}
 				], done);
 			});
 
-			function isNotChangedState(done, err, res) {
-				if (err) return done(err);
+			// function isNotChangedState(done, err, res) {
+			// 	if (err) return done(err);
 
-				Goal.findById(curGoal._id, function(err, result) {
-					if (err) return done(err);
+			// 	Goal.findById(curGoal._id, function(err, result) {
+			// 		if (err) return done(err);
 
-					assert.notEqual(result.state, 2);
-					done();
-				});
-			}
+			// 		assert.notEqual(result.state, 2);
+			// 		done();
+			// 	});
+			// }
 		});
 
-		function checkIsGoalChanged(done, err, res) {
+		describe('uploadEvidence', function() {
+			var fileName = 'testFile.png';
+			var pathToFile = './test/resources/';
+			var filesFolder = './test/storage/goalEvidences/';
+
+			beforeEach(function(done) {
+				GoalEvidences.getContainers(function(err, containers) {
+					if (err) return done(err);
+
+					containers = containers.filter(function(c) {return c.name !== 'default-folder'});
+
+					async.each(containers, function(container, cb) {
+						GoalEvidences.destroyContainer(container.name, cb);
+					}, done);
+				});
+			});
+
+			describe('acls', function() {
+				it('required authorization', function(done) {
+					api
+						.post(routeHelper('uploadEvidence', {id: curGoal._id}))
+						.attach('file', pathToFile + fileName)
+						.expect(401, checkIsInstanceNotChanged.bind(Goal, curGoal, done));
+				});
+
+				it('deny if not owner', function(done) {
+					api
+						.post(routeHelper('uploadEvidence', {id: curGoal._id}, fMemberToken))
+						.attach('file', pathToFile + fileName)
+						.expect(401, checkIsInstanceNotChanged.bind(Goal, curGoal, done));
+				});
+			});
+
+			it('require file', function(done) {
+				api
+					.post(routeHelper('uploadEvidence', {id: curGoal._id}, ownerToken))
+					.expect(400, checkIsInstanceNotChanged.bind(Goal, curGoal, done));
+			});
+
+			it('success save file', function(done) {
+				api
+					.post(routeHelper('uploadEvidence', {id: curGoal._id}, ownerToken))
+					.attach('file', pathToFile + fileName)
+					.expect(200, function(err, res){
+						if (err) return done(err);
+
+						var files = fs.readdirSync(filesFolder + curGoal._id + '/');
+						assert.equal(files.length, 1);
+						var splitedName = files[0].split('.');
+						assert.equal(splitedName[0] + '.' + splitedName[splitedName.length - 1], fileName);
+						done();
+					});
+			});
+
+			it('success change goal', function(done) {
+				api
+					.post(routeHelper('uploadEvidence', {id: curGoal._id}, ownerToken))
+					.attach('file', pathToFile + fileName)
+					.expect(200, function(err, res){
+						if (err) return done(err);
+
+						Goal.findById(curGoal._id, function(err, goal) {
+							if (err) return done(err);
+
+							assert.equal(goal.evidences.length, 1);
+							assert.equal(goal.evidences[0].container, curGoal._id);
+							assert.equal(goal.evidences[0].originalFilename, fileName);
+							done();
+						});
+					});
+			});
+
+			it('correct responce', function(done) {
+				api
+					.post(routeHelper('uploadEvidence', {id: curGoal._id}, ownerToken))
+					.attach('file', pathToFile + fileName)
+					.expect(200, function(err, res){
+						if (err) return done(err);
+
+						Goal.findById(curGoal._id, function(err, goal) {
+							if (err) return done(err);
+
+							assert.deepEqual(modelToObj(goal), res.body);
+							done();
+						});
+					});
+			});
+		});
+
+		describe('removeEvidence', function() {
+			var goalForCurSuite;
+			var fileName;
+			var pathToFile = './test/resources/testFile.png';
+			var filesFolder = './test/storage/goalEvidences/';
+
+			// upload file before each test
+			beforeEach(function(done) {
+				goalForCurSuite = _.assign({}, curGoal);
+
+				api
+					.post(routeHelper('uploadEvidence', {id: goalForCurSuite._id}, ownerToken))
+					.attach('file', pathToFile)
+					.expect(200, function(err, res) {
+						if (err) return done(err);
+
+						Goal.findById(goalForCurSuite._id, function(err, result) {
+							if (err) return done(err);
+
+							assert.deepProperty(result, 'evidences[0].name');
+							fileName = res.body.evidences[0].name;
+							goalForCurSuite = modelToObj(result);
+							done();
+						});
+					});
+			});
+
+			it('success change goal', function(done) {
+				api
+					.post(routeHelper('removeEvidence', {id: goalForCurSuite._id}, ownerToken))
+					.send({fileName: fileName})
+					.expect(200, function(err, res){
+						if (err) return done(err);
+
+						Goal.findById(goalForCurSuite._id, function(err, result) {
+							if (err) return done(err);
+
+							assert.lengthOf(result.evidences, 0);
+							done();
+						});
+					});
+			});
+
+			it('success remove file', function(done) {
+				api
+					.post(routeHelper('removeEvidence', {id: goalForCurSuite._id}, ownerToken))
+					.send({fileName: fileName})
+					.expect(200, function(err, res){
+						if (err) return done(err);
+
+						var files = fs.readdirSync(filesFolder + goalForCurSuite._id + '/');
+						assert.equal(files.length, 0);
+						done();
+					});
+			});
+
+			it('require fileName', function(done) {
+				api
+					.post(routeHelper('removeEvidence', {id: goalForCurSuite._id}, ownerToken))
+					.expect(400, checkIsInstanceNotChanged.bind(Goal, goalForCurSuite, done));
+			});
+
+			it('correct responce', function(done) {
+				api
+					.post(routeHelper('removeEvidence', {id: goalForCurSuite._id}, ownerToken))
+					.send({fileName: fileName})
+					.expect(200, function(err, res){
+						if (err) return done(err);
+
+						Goal.findById(goalForCurSuite._id, function(err, goal) {
+							if (err) return done(err);
+
+							assert.deepEqual(modelToObj(goal), res.body);
+							done();
+						});
+					});
+			});
+
+			describe('acls', function() {
+				it('required authorization', function(done) {
+					api
+						.post(routeHelper('removeEvidence', {id: curGoal._id}))
+						.send({fileName: fileName})
+						.expect(401, checkIsInstanceNotChanged.bind(Goal, goalForCurSuite, done));
+				});
+
+				it('deny if not owner', function(done) {
+					api
+						.post(routeHelper('removeEvidence', {id: curGoal._id}, fMemberToken))
+						.send({fileName: fileName})
+						.expect(401, checkIsInstanceNotChanged.bind(Goal, goalForCurSuite, done));
+				});
+			});
+		});
+
+		describe('leaveVote', function() {
+			it('err if goal state not 2 or 4', function(done) {
+				api
+					.post(routeHelper('leaveVote', {id: curGoal._id}, fMemberToken))
+					.send({achieve: true})
+					.expect(403, checkIsInstanceNotChanged.bind(Goal, curGoal, done));
+			});
+
+			describe('leave vote success', function() {
+				// cange goal state to 2
+				beforeEach(function(done) {
+
+					Goal.updateAll({
+							_id: curGoal._id
+						}, {
+							state: 2
+						},
+						function(err, info) {
+							done(err);
+							assert.equal(1, info.count);
+						});
+				});
+
+				it('create vote success', function(done) {
+					var vote = {
+						achieve: !!Math.round(Math.random()),
+						comment: 'comment'
+					};
+
+					api
+						.post(routeHelper('leaveVote', {id: curGoal._id}, fMemberToken))
+						.send(vote)
+						.expect(200, function(err, res) {
+							if (err) return done(err);
+
+							Goal.findById(curGoal._id, function(err, result) {
+								if (err) return done(err);
+
+								assert.lengthOf(result.votes, 1);
+								assert.equal(result.votes[0].approved, vote.achieve);
+								assert.equal(result.votes[0]._approverId, fMember._id);
+								assert.equal(result.votes[0].comment, !vote.achieve ? vote.comment : '');
+								done();
+							});
+						});
+				});
+
+				it('change vote if already exist success', function(done) {
+					async.series([
+						// prepare vote
+						function(cb) {
+							var oldVote = {
+								approved: false,
+								_approverId: fMember._id,
+								comment: 'falseComment',
+								createAt: new Date()
+							};
+
+							Goal.updateAll({
+									_id: curGoal._id
+								}, {
+									votes: [oldVote]
+								},
+								function(err, info) {
+									cb(err);
+									assert.equal(1, info.count);
+								});
+						},
+						function(cb) {
+							var vote = {
+								achieve: true,
+								comment: ''
+							};
+
+							api
+								.post(routeHelper('leaveVote', {id: curGoal._id}, fMemberToken))
+								.send(vote)
+								.expect(200, function(err, res) {
+									if (err) return done(err);
+
+									Goal.findById(curGoal._id, function(err, result) {
+										if (err) return done(err);
+
+										assert.lengthOf(result.votes, 1);
+										assert.equal(result.votes[0].approved, vote.achieve);
+										assert.equal(result.votes[0]._approverId, fMember._id);
+										assert.equal(result.votes[0].comment, vote.comment);
+										done();
+									});
+								});
+						}
+					], done);
+				});
+
+				it('change state success', function(done) {
+					var vote = {
+						achieve: false,
+					};
+
+					api
+						.post(routeHelper('leaveVote', {id: curGoal._id}, fMemberToken))
+						.send(vote)
+						.expect(200, function(err, res) {
+							if (err) return done(err);
+
+							Goal.findById(curGoal._id, function(err, result) {
+								if (err) return done(err);
+
+								assert.equal(result.state, 4);
+								vote.achieve = true;
+
+								api
+									.post(routeHelper('leaveVote', {id: curGoal._id}, fMemberToken))
+									.send(vote)
+									.expect(200, function(err, res) {
+										if (err) return done(err);
+
+										Goal.findById(curGoal._id, function(err, result) {
+											if (err) return done(err);
+
+											assert.equal(result.state, 2);
+											done();
+										});
+									});
+							});
+						});
+				});
+
+				it('correct responce', function(done) {
+					api
+						.post(routeHelper('leaveVote', {id: curGoal._id}, fMemberToken))
+						.send({achieve: true})
+						.expect(200, function(err, res) {
+							if (err) return done(err);
+
+							Goal.findById(curGoal._id, function(err, goal) {
+								if (err) return done(err);
+
+								assert.deepEqual(modelToObj(goal), res.body);
+								done();
+							});
+						});
+				});
+
+				describe('acls', function() {
+					var goal;
+
+					beforeEach(function() {
+						goal = _.assign({}, curGoal, {state: 2});
+					});
+
+					it('required authorization', function(done) {
+						api
+							.post(routeHelper('leaveVote', {id: curGoal._id}))
+							.send({achieve: true})
+							.expect(401, checkIsInstanceNotChanged.bind(Goal, goal, done));
+					});
+
+					it('deny if not group member', function(done) {
+						api
+							.post(routeHelper('leaveVote', {id: curGoal._id}, notMemberToken))
+							.send({achieve: true})
+							.expect(403, checkIsInstanceNotChanged.bind(Goal, goal, done));
+					});
+
+					it('deny if owner owner', function(done) {
+						api
+							.post(routeHelper('leaveVote', {id: curGoal._id}, ownerToken))
+							.send({achieve: true})
+							.expect(403, checkIsInstanceNotChanged.bind(Goal, goal, done));
+					});
+				});
+			});
+		});
+	});
+
+	function checkIsInstanceNotChanged(istance, done, err, res) {
+		if (err) return done(err);
+		var Model = this;
+
+		Model.findById(istance._id, function(err, result) {
 			if (err) return done(err);
 
-			Goal.findById(curGoal._id, function(err, result) {
-				if (err) return done(err);
-
-				assert.deepEqual(curGoal, modelToObj(result));
-				done();
-			});
-		}
-	});
+			assert.deepEqual(istance, modelToObj(result));
+			done();
+		});
+	}
 
 	function modelToObj(model) {
 		return JSON.parse(JSON.stringify(model));
 	}
-});
+});*/

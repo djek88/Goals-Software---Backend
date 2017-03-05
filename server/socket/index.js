@@ -1,10 +1,9 @@
 var socketAuth = require('socketio-auth');
 var async = require('async');
-var app = require('../server');
 
 module.exports = Socket;
 
-function Socket(server) {
+function Socket(app, server) {
 	var io = require('socket.io')(server, {path: '/sockets'});
 
 	var startNsp = require('./start-session-nsp')(io);
@@ -14,19 +13,19 @@ function Socket(server) {
 	socketAuth(goesNsp, {authenticate: authenticate});
 
 	return io;
-}
 
-function authenticate(socket, data, cb) {
-	var AccessToken = app.models.AccessToken;
-	var Customer = app.models.Customer;
+	function authenticate(socket, data, cb) {
+		var AccessToken = app.models.AccessToken;
+		var Customer = app.models.Customer;
 
-	async.parallel([
-		AccessToken.findById.bind(AccessToken, data.id),
-		Customer.findById.bind(Customer, data.userId)
-	], function(err, results) {
-		if (err || !results[0] || !results[1]) return cb(null, false);
+		async.parallel([
+			AccessToken.findById.bind(AccessToken, data.id),
+			Customer.findById.bind(Customer, data.userId)
+		], function(err, results) {
+			if (err || !results[0] || !results[1]) return cb(null, false);
 
-		socket.user = results[1];
-		cb(null, true);
-	});
+			socket.user = results[1];
+			cb(null, true);
+		});
+	}
 }

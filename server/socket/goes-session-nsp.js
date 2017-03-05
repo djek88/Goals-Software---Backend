@@ -23,7 +23,7 @@ module.exports = function(io) {
 function goesSessionOnJoin(roomName, callback) {
 	var socket = this;
 	var nsp = socket.nsp;
-	var userId = socket.user._id.toString();
+	var userId = socket.user._id;
 
 	// Forbidden connect if session already going
 	if (nsp.adapter.rooms[roomName] && nsp.adapter.rooms[roomName].state) {
@@ -41,28 +41,43 @@ function goesSessionOnJoin(roomName, callback) {
 		socket.join(roomName);
 		callback(null, session._facilitatorId);
 
-		if (isAllParticipantsJoin(session)) {
+		var canBeStarted = isOfflineSession(group, session) || isAllJoined(group, session);
+
+		if (canBeStarted) {
 			turnToNextState(nsp, roomName, session, group);
 		}
 	});
 
 	function isJoinForbidden(session, group) {
-		var participantIds = session._participantIds;
-		var sessFinish = session.state.length;
-		var isRoundsValid = returnNextState(
-			session.state, group, participantIds.length
-		);
-		var haveAccess = participantIds.some(function(id) {
-			return id.toString() === userId;
-		});
+		var whiteListUsers = session._participantIds.concat(session._facilitatorId);
+		var participantsCount = session._participantIds.length;
 
-		return (!session._facilitatorId || sessFinish ||
-			!haveAccess || !isRoundsValid);
+		if (!session._facilitatorId) return true;
+		// if session already going
+		if (session.state.length) return true;
+		// if don't have access
+		if (!whiteListUsers.some(function(id){return id === userId;})) return true;
+		// Forbidden if offline session and not facilitator
+		if (group.sessionConf.offline && session._facilitatorId !== userId) return true;
+		// if rounds invalid
+		if (!returnNextState(session.state, group, participantsCount)) return true;
 	}
 
-	function isAllParticipantsJoin(session) {
+	function isOfflineSession(group, session) {
+		var isFacilitatorOnline = shared
+			.onlineIdsInRoom(nsp, roomName)
+			.indexOf(session._facilitatorId) >= 0;
+
+		return group.sessionConf.offline && isFacilitatorOnline;
+	}
+
+	function isAllJoined(group, session) {
 		var connectedCount = shared.onlineIdsInRoom(nsp, roomName).length;
 		var participantsCount = session._participantIds.length;
+
+		if (group.sessionConf.withoutFacilitator) {
+			participantsCount++;
+		}
 
 		return connectedCount === participantsCount;
 	}
@@ -94,21 +109,20 @@ function skipRoundWhenUserLeave(reason) {
 
 	if (!socket.auth) return shared.onclose.call(socket, reason);
 
-	var id = socket.user._id.toString();
-
 	for (var roomName in socket.rooms) {
 		var room = socket.nsp.adapter.rooms[roomName];
+		var whoLeaveId = socket.user._id;
 
 		if (room.timer && room.state && room.participantIds) {
-			var onlineIds = shared.onlineIdsInRoom(socket.nsp, roomName);
-			var remainsOneUser = onlineIds.length <= 2;
-			var userNumWhoLeave = room.participantIds.indexOf(id) + 1;
-			var userNumWhoseTurn = room.state[2] ? room.state[2] : room.state[1];
+			var onlineCount = shared.onlineIdsInRoom(socket.nsp, roomName).length;
+			var stayOneActiveUser = onlineCount <= (room.withoutFacilitator ? 3 : 2);
+			var ordinalNumWhoLeave = room.participantIds.indexOf(whoLeaveId) + 1;
+			var ordinalNumWhoseTurn = room.state[2] ? room.state[2] : room.state[1];
 
-			if (userNumWhoLeave === userNumWhoseTurn || remainsOneUser) {
+			if (ordinalNumWhoLeave === ordinalNumWhoseTurn || stayOneActiveUser) {
 				// need delay for apply to cur socket method "onclose"
 				// which change socket status to disconnected
-				setTimeout(room.timer.finish, 1000);
+				setTimeout(room.timer.finish, 500);
 			}
 		}
 	}
@@ -117,9 +131,14 @@ function skipRoundWhenUserLeave(reason) {
 }
 
 function turnToNextState(nsp, roomName, session, group) {
-	var onlineIds = shared.onlineIdsInRoom(nsp, roomName);
-	var state = getNextSessionStateByOnlineList(session, group, onlineIds);
 	var room = nsp.adapter.rooms[roomName];
+	var onlineIds = shared.onlineIdsInRoom(nsp, roomName);
+
+	if (group.sessionConf.offline && onlineIds.length > 0) {
+		onlineIds = session._participantIds;
+	}
+
+	var state = getNextSessionStateByOnlineList(session, group, onlineIds);
 	var isSessionFinish = !state;
 
 	//console.log('cur state', session.state);
@@ -132,19 +151,21 @@ function turnToNextState(nsp, roomName, session, group) {
 			delete room.state;
 			delete room.participantIds;
 			delete room.facilitatorId;
+			delete room.withoutFacilitator;
 		}
 
-		return shared.updateGroupAndSessAfterFinish(group, session, function() {
+		return shared.updateGroupAndSessAfterFinish(group, session, function(err) {
+			if (err) return throwStateUpdateError(err);
 			// notify users about session finish
 			nsp.to(roomName).emit('session:stateUpdate', null, null);
 		});
 	}
 
 	safelyUpdateSessionState(session, state, function(err, freshSess) {
-		if (err) return nsp.to(roomName).emit('session:stateUpdate', err);
+		if (err) return throwStateUpdateError(err);
 
 		var curState = freshSess.state;
-		var sendingData = {
+		var stateUpdateData = {
 			state: curState,
 			focusOn: freshSess._participantIds[curState[1] - 1],
 			whoGiveFeedback: curState[2] ? freshSess._participantIds[curState[2] - 1] : null
@@ -153,7 +174,7 @@ function turnToNextState(nsp, roomName, session, group) {
 		var curStateSec = getTimeForCurState(freshSess, group);
 		var timer = new Timer(curStateSec);
 
-		nsp.to(roomName).emit('session:stateUpdate', null, sendingData);
+		nsp.to(roomName).emit('session:stateUpdate', null, stateUpdateData);
 		nsp.to(roomName).emit('session:nextTurnInfo', nextTurnInfo);
 
 		// Save in room obj necessary info
@@ -161,6 +182,7 @@ function turnToNextState(nsp, roomName, session, group) {
 		room.state = curState;
 		room.facilitatorId = freshSess._facilitatorId.toString();
 		room.participantIds = freshSess._participantIds.map(function(id) {return id.toString()});
+		room.withoutFacilitator = group.sessionConf.withoutFacilitator;
 
 
 		timer.onUpdate = function(sec) {
@@ -170,9 +192,24 @@ function turnToNextState(nsp, roomName, session, group) {
 
 		timer.onFinish = function() {
 			//console.log('round finish');
-			turnToNextState(nsp, roomName, freshSess, group);
+			async.parallel([
+				app.models.Session.findById.bind(app.models.Session, freshSess._id),
+				app.models.Group.findById.bind(app.models.Group, group._id)
+			], function(err, results) {
+				if (err || !results[0] || !results[1]) {
+					return throwStateUpdateError(err);
+				}
+
+				turnToNextState(nsp, roomName, results[0], results[1]);
+			});
 		}
 	});
+
+	function throwStateUpdateError(err) {
+		err = err || new Error('Something went wrong!');
+
+		nsp.to(roomName).emit('session:stateUpdate', err);
+	}
 }
 
 function getNextSessionStateByOnlineList(session, group, onlineIds) {
@@ -187,23 +224,27 @@ function getNextSessionStateByOnlineList(session, group, onlineIds) {
 
 		var whoseTurnToTalkId = participantIds[state[1] - 1].toString();
 
-		if (onlineIds.indexOf(whoseTurnToTalkId) < 0) continue;
+		if (!isOnline(whoseTurnToTalkId)) continue;
 
 		if (state[2]) {
 			whoseTurnToTalkId = participantIds[state[2] - 1].toString();
 
-			if (onlineIds.indexOf(whoseTurnToTalkId) < 0) continue;
+			if (!isOnline(whoseTurnToTalkId)) continue;
 		}
 
 		break;
 	}
 
 	return state;
+
+	function isOnline(participantId) {
+		return onlineIds.indexOf(participantId) >= 0;
+	}
 }
 
 function getNextTurnInfo(session, group, onlineIds) {
 	var nextState = getNextSessionStateByOnlineList.apply(null, arguments);
-	var participantIds = session._participantIds
+	var participantIds = session._participantIds;
 	var result = {};
 
 	if (nextState) {

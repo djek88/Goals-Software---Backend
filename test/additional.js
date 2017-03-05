@@ -1,4 +1,4 @@
-var assert = require('chai').assert;
+/*var assert = require('chai').assert;
 var server = require('../server/server.js');
 
 var resource = require('../common/models/additional/resources');
@@ -77,4 +77,4 @@ describe('Additional model', function() {
 				});
 		});
 	});
-});
+});*/

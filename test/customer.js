@@ -1,11 +1,11 @@
-var fs = require('fs');
+/*var fs = require('fs');
 var assert = require('chai').assert;
 var async = require('async');
 var server = require('../server/server');
 
 var Customer = server.models.Customer;
 var AccessToken = server.models.AccessToken;
-var AvatarContainer = server.models.AvatarsContainer;
+var CustomerAvatars = server.models.CustomerAvatars;
 
 var routeHelper = require('./lib/route-helper')(Customer);
 var usersData = require('./resources/users');
@@ -68,7 +68,10 @@ describe('Customer model', function() {
 						lastName: firstUser.lastName,
 						description: firstUser.description,
 						avatar: firstUser.avatar,
-						social: JSON.parse(JSON.stringify(firstUser.social))
+						timeZone: firstUser.timeZone,
+						visitSeveralGroups: firstUser.visitSeveralGroups,
+						social: JSON.parse(JSON.stringify(firstUser.social)),
+						groupPreferences: JSON.parse(JSON.stringify(firstUser.groupPreferences))
 					});
 					done()
 				});
@@ -78,17 +81,17 @@ describe('Customer model', function() {
 	describe('uploadAvatar', function() {
 		var fileName = 'testFile.png';
 		var pathToFile = './test/resources/';
-		var avatarsFolder = './test/storage/avatars/';
+		var avatarsFolder = './test/storage/customerAvatars/';
 
 		beforeEach(function(done) {
 			async.series([
 				reset.bind(null, firstUser),
 				function(cb) {
-					AvatarContainer.getContainers(function (err, containers) {
+					CustomerAvatars.getContainers(function (err, containers) {
 						if (err) return cb(err);
 
 						if (containers.some(function(c) {return c.name === firstUser._id;})) {
-							return AvatarContainer.destroyContainer(firstUser._id, cb);
+							return CustomerAvatars.destroyContainer(firstUser._id, cb);
 						}
 						cb();
 					});
@@ -100,39 +103,41 @@ describe('Customer model', function() {
 			it('required authorization', function(done) {
 				api
 					.post(routeHelper('uploadAvatar', {id: firstUser._id}))
+					.attach('file', pathToFile + fileName)
 					.expect(401, done);
 			});
 
 			it('deny if not owner', function(done) {
 				api
 					.post(routeHelper('uploadAvatar', {id: secondUser._id}, fUserToken))
+					.attach('file', pathToFile + fileName)
 					.expect(401, done);
 			});
 		});
 
-		it('success save file', function(done) {
+		it('require file', function(done) {
 			api
 				.post(routeHelper('uploadAvatar', {id: firstUser._id}, fUserToken))
-				.attach('file', pathToFile + fileName)
-				.expect(200, function(err, res){
-					if (err) return done(err);
-
-					fs.statSync(avatarsFolder + firstUser._id + '/' + fileName);
-					done();
-				});
+				.expect(400, done);
 		});
 
-		it('afterRemote hook "set avatar field"', function(done) {
+		it('success save file, update model, valid responce', function(done) {
 			api
 				.post(routeHelper('uploadAvatar', {id: firstUser._id}, fUserToken))
 				.attach('file', pathToFile + fileName)
 				.expect(200, function(err, res){
 					if (err) return done(err);
+
+					// check file exist
+					fs.statSync(avatarsFolder + firstUser._id + '/' + fileName);
 
 					Customer.findById(firstUser._id, function(err, result) {
 						if (err) return done(err);
 
-						assert.propertyVal(result, 'avatar', '/AvatarsContainers/' + firstUser._id + '/download/' + fileName);
+						// check update model
+						assert.propertyVal(result, 'avatar', '/CustomerAvatars/' + firstUser._id + '/download/' + fileName);
+						// check responce
+						assert.deepEqual(res.body, modelToObj(result));
 						done();
 					});
 				});
@@ -142,6 +147,60 @@ describe('Customer model', function() {
 	describe('updateAttributes', function() {
 		beforeEach(function(done) {
 			reset(firstUser, done);
+		});
+
+		it('success updated, valid responce', function(done) {
+			var newData = {
+				firstName: 'newfirstName',
+				lastName: 'newlastName',
+				description: 'newdescription',
+				timeZone: 'UTC',
+				visitSeveralGroups: true,
+				social: {
+					fb: 'newfb',
+					tw: 'newtw',
+					li: 'newli',
+					wb: 'newwb',
+				},
+				balance: {
+					USD: 100,
+				},
+				groupPreferences:{
+					type: 1,
+					joiningFee: [1, 2],
+					monthlyFee: [3, 4],
+					yearlyFee: [5, 6],
+					penaltyFee: [50, 100],
+					members: [2, 4],
+					availableTime: ["1.00", "3.00"],
+					languages: ["aa"]
+				}
+			};
+
+			api
+				.put(routeHelper('updateAttributes', {id: firstUser._id}, fUserToken))
+				.send(newData)
+				.expect(200, function(err, res) {
+					if(err) return done(err);
+
+					Customer.findById(firstUser._id, function(err, result) {
+						if (err) return done(err);
+
+						result = modelToObj(result)
+
+						assert.deepEqual(res.body, result);
+
+						assert.equal(newData.firstName, result.firstName);
+						assert.equal(newData.lastName, result.lastName);
+						assert.equal(newData.description, result.description);
+						assert.equal(newData.timeZone, result.timeZone);
+						assert.equal(newData.visitSeveralGroups, result.visitSeveralGroups);
+						assert.deepEqual(newData.social, result.social);
+						assert.deepEqual(newData.balance, result.balance);
+						assert.deepEqual(newData.groupPreferences, result.groupPreferences);
+						done();
+					});
+				});
 		});
 
 		it('beforeRemote hook "del properties"', function(done) {
@@ -171,8 +230,12 @@ describe('Customer model', function() {
 				});
 		});
 	});
+
+	function modelToObj(model) {
+		return JSON.parse(JSON.stringify(model));
+	}
 });
 
 function reset(instance, cb) {
 	instance.updateAttributes(instance, cb);
-}
+}*/

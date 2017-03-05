@@ -20,89 +20,87 @@ module.exports = function(app) {
 			if (err) return;
 
 			async.each(goals, function(goal, callback) {
-				goal.Group.getAsync(function(err, group) {
-					if (err || !group) return callback();
+				if (goal.state === 1 && goal.dueDate < Date.now()) {
+					updateGoal(goal, goal.Group(), 5);
+					return callback();
+				}
 
-					if (goal.state === 1 && goal.dueDate < Date.now()) {
-						updateGoal(goal, group, 5);
-						return callback();
-					}
+				var newState = getNewGoalState(goal, goal.Group());
+				var isDueDateReached = goal.dueDate < Date.now();
 
-					var newState = getNewGoalState(goal, group);
-					var isDueDateReached = goal.dueDate < Date.now();
+				// also can change goal state to "reached",
+				// if already have more of 50% positive votes
+				if (isDueDateReached && newState !== null ||
+					!isDueDateReached && newState === 3) {
 
-					// also can change goal state to "reached",
-					// if already have more of 50% positive votes
-					if (isDueDateReached && newState !== null ||
-						!isDueDateReached && newState === 3) {
+					updateGoal(goal, goal.Group(), newState);
+				}
 
-						updateGoal(goal, group, newState);
-					}
+				callback();
 
-					callback();
+				function getNewGoalState() {
+					var voterIds = goal.Group()._memberIds.concat(goal.Group()._ownerId)
+						.filter(function(id) {return id !== goal._ownerId;});
+					var whoNotVoteIds = [].concat(voterIds);
+					var groupOwnerVote = null;
+					var approveVotes = 0;
+					var rejectVotes = 0;
 
-					function getNewGoalState() {
-						var voterIds = group._memberIds.concat(group._ownerId)
-							.filter(function(id) {return id !== goal._ownerId;});
-						var whoNotVoteIds = [].concat(voterIds);
-						var groupOwnerVote = null;
-						var approveVotes = 0;
-						var rejectVotes = 0;
-
-						// counting approveVotes, rejectVotes, whoNotVoteIds, groupOwnerVote
-						goal.votes.forEach(function(vote) {
-							// consider only current group members votes
-							if (voterIds.some(function(id) {return id === vote._approverId;})) {
-								if (vote.approved) {
-									approveVotes++;
-								} else {
-									rejectVotes++;
-								}
-
-								// save groupOwner vote
-								if (group._ownerId === vote._approverId) {
-									groupOwnerVote = vote.approved;
-								}
-
-								// recalculate the members who not had vote
-								whoNotVoteIds = whoNotVoteIds.filter(function(id) {
-									return id !== vote._approverId;
-								});
+					// counting approveVotes, rejectVotes, whoNotVoteIds, groupOwnerVote
+					goal.votes.forEach(function(vote) {
+						// consider only current group members votes
+						if (voterIds.some(function(id) {return id === vote._approverId;})) {
+							if (vote.approved) {
+								approveVotes++;
+							} else {
+								rejectVotes++;
 							}
-						});
 
-						approveVotes = approveVotes / voterIds.length * 100;
-						rejectVotes = rejectVotes / voterIds.length * 100;
+							// save groupOwner vote
+							if (goal.Group()._ownerId === vote._approverId) {
+								groupOwnerVote = vote.approved;
+							}
 
-						if (approveVotes === 50 && rejectVotes === 50 && groupOwnerVote !== null) {
-							return groupOwnerVote ? 3 : 5;
-						} else if (rejectVotes > 50) {
-							return 5;
-						} else if (approveVotes > 50) {
-							return 3;
-						} else {
-							return null;
-							// if whoNotVoteIds.length != 0 we can notify by email,
-							// those members who didn't leave vote yet
-
-							/*mailer.notifyById(
-								whoNotVoteIds,
-								'Need you vote',
-								[
-									'You are not had vote for this goal: "app.themastermind.nz/group/' + goal._groupId + '/goal-review/' + goal._id + '".',
-									'Please review this goal and leave your vote.'
-								].join('\r')
-							);*/
+							// recalculate the members who not had vote
+							whoNotVoteIds = whoNotVoteIds.filter(function(id) {
+								return id !== vote._approverId;
+							});
 						}
+					});
+
+					approveVotes = approveVotes / voterIds.length * 100;
+					rejectVotes = rejectVotes / voterIds.length * 100;
+
+					if (approveVotes === 50 && rejectVotes === 50 && groupOwnerVote !== null) {
+						return groupOwnerVote ? 3 : 5;
+					} else if (rejectVotes > 50) {
+						return 5;
+					} else if (approveVotes > 50) {
+						return 3;
+					} else {
+						return null;
+						// if whoNotVoteIds.length != 0 we can notify by email,
+						// those members who didn't leave vote yet
+
+						/*mailer.notifyById(
+							whoNotVoteIds,
+							'Need you vote',
+							[
+								'You are not had vote for this goal: "app.themastermind.nz/group/' + goal._groupId + '/goal-review/' + goal._id + '".',
+								'Please review this goal and leave your vote.'
+							].join('\r')
+						);*/
 					}
-				});
+				}
 			});
 		});
 	}
 
 	function updateGoal(goal, group, newState) {
 		goal.updateAttributes({state: newState}, function(err, freshGoal) {
-			notifyGoalOwnerAboutPenalty(freshGoal, group);
+			if (freshGoal.state === 5) {
+				notifyGoalOwnerAboutPenalty(freshGoal, group);
+			}
 		});
 	}
 

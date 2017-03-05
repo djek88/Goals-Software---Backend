@@ -14,16 +14,28 @@ module.exports = {
 		"name": "db",
 		"connector": "mongodb"
 	},
-	"avatarsStorage": {
-		"name": "avatarsStorage",
+	"customerAvatarsStorage": {
+		"name": "customerAvatarsStorage",
 		"connector": "loopback-component-storage",
 		"provider": "filesystem",
-		"root": "./test/storage/avatars"
+		"root": "./test/storage/customerAvatars"
 	},
-	"filesStorage": {
-		"name": "filesStorage",
+	"groupAvatarsStorage": {
+		"name": "groupAvatarsStorage",
 		"connector": "loopback-component-storage",
 		"provider": "filesystem",
-		"root": "./test/storage/files"
+		"root": "./test/storage/groupAvatars"
+	},
+	"goalEvidencesStorage": {
+		"name": "goalEvidencesStorage",
+		"connector": "loopback-component-storage",
+		"provider": "filesystem",
+		"root": "./test/storage/goalEvidences"
+	},
+	"groupAttachmentsStorage": {
+		"name": "groupAttachmentsStorage",
+		"connector": "loopback-component-storage",
+		"provider": "filesystem",
+		"root": "./test/storage/groupAttachments"
 	}
 };

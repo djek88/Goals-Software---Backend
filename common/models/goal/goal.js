@@ -2,7 +2,7 @@ var async = require('async');
 var ApiError = require('../../../server/lib/error/Api-error');
 var mailer = require('../../../server/lib/mailer');
 var GOALSTATES = require('../additional/resources').goalStates;
-var SUPPORTEDEVIDENCETYPES = require('../additional/resources').supportedEvidenceTypes;
+var EVIDENCESUPPORTEDTYPES = require('../additional/resources').evidenceSupportedTypes;
 var isOwnerOrMember = require('../group/group').isOwnerOrMember;
 var changeModelByWhiteList = require('../group/group').changeModelByWhiteList;
 
@@ -59,7 +59,7 @@ module.exports = function(Goal) {
 		],
 		returns: {type: 'object', root: true}
 	});
-	// Leave feedback
+	// Leave vote
 	Goal.remoteMethod('leaveVote', {
 		isStatic: false,
 		description: 'Leave vote for goal.',
@@ -105,7 +105,9 @@ module.exports = function(Goal) {
 						[
 							'Hi ' + owner.firstName,
 
-							sender.firstName + ' has just left feedback on your goal. The said:',
+							sender.firstName + ' has just left feedback on your goal.',
+
+							'The feedback was:',
 
 							feedback,
 
@@ -166,9 +168,12 @@ module.exports = function(Goal) {
 	};
 
 	Goal.prototype.uploadEvidence = function(req, res, next) {
-		var Container = Goal.app.models.FilesContainer;
+		var Container = Goal.app.models.GoalEvidences;
 		var goal = this;
 		var goalId = goal._id.toString();
+
+		// if don't have file
+		if (!req._readableState.length) return next(ApiError.incorrectParam('file'));
 
 		Container.getContainers(function (err, containers) {
 			if (err) return next(err);
@@ -185,8 +190,8 @@ module.exports = function(Goal) {
 
 		function uploadFile() {
 			var supportTypes = [];
-			for(var key in SUPPORTEDEVIDENCETYPES) {
-				supportTypes.push(SUPPORTEDEVIDENCETYPES[key]);
+			for(var key in EVIDENCESUPPORTEDTYPES) {
+				supportTypes.push(EVIDENCESUPPORTEDTYPES[key]);
 			}
 
 			var options = {
@@ -197,7 +202,7 @@ module.exports = function(Goal) {
 					return fileName.join('.');
 				},
 				allowedContentTypes: supportTypes,
-				//maxFileSize: can pass a function(file, req, res) or number
+				//maxFileSize: can pass a function(file, req, res) or number, default is 10 MB
 				//acl: can pass a function(file, req, res)
 			};
 
@@ -216,7 +221,7 @@ module.exports = function(Goal) {
 	};
 
 	Goal.prototype.removeEvidence = function(fileName, next) {
-		var Container = Goal.app.models.FilesContainer;
+		var Container = Goal.app.models.GoalEvidences;
 		var goal = this;
 
 		for (var i = Object.keys(goal.evidences).length - 1; i >= 0; i--) {
@@ -255,9 +260,7 @@ module.exports = function(Goal) {
 
 			next(null, freshGoal);
 
-			Goal.app.models.Customer.find({
-				where: {_id: {inq: [senderId, freshGoal._ownerId]}}
-			}, notifyOwner);
+			notifyOwner();
 		});
 
 		function createUpdateVote(cb) {
@@ -307,25 +310,38 @@ module.exports = function(Goal) {
 			}, cb);
 		}
 
-		function notifyOwner(err, members) {
-			if (err || members.length !== 2) return;
+		function notifyOwner() {
+			Goal.app.models.Customer.find({
+				where: {_id: {inq: [senderId, goal._ownerId]}}
+			}, function(err, members) {
+				if (err || members.length !== 2) return;
 
-			var sender = members.filter(function(m) {return m._id === senderId})[0];
-			var owner = members.filter(function(m) {return m._id !== senderId})[0];
+				var sender = members.filter(function(m) {return m._id === senderId})[0];
+				var owner = members.filter(function(m) {return m._id !== senderId})[0];
+				var message = 'Hi ' + owner.firstName + '\r\r';
 
-			mailer.notifyByEmail(
-				owner.email,
-				'Goal evidences was ' + (achieve ? 'approve' : 'rejected'),
-				[
-					'Hi ' + owner.firstName,
+				if (achieve) {
+					message += [
+						sender.firstName + ' ' + sender.lastName + ', has approved your goal evidence. To see any feedback go to:',
 
-					sender.firstName + ' ' + sender.lastName + ', was ' + (achieve ? 'approve' : 'rejected') + ' your goal evidence, for this goal:',
+						'app.themastermind.nz/group/' + goal._groupId + '/upload-goal-evidence/' + goal._id
+					].join('\r\r');
+				} else {
+					message += [
+						sender.firstName + ' ' + sender.lastName + ', has rejected your goal evidence. To see why, or add more, first login then go to:',
 
-					'app.themastermind.nz/group/' + goal._groupId + '/upload-goal-evidence/' + goal._id,
+						'app.themastermind.nz/group/' + goal._groupId + '/upload-goal-evidence/' + goal._id,
 
-					comment ? 'His comment:\r\r' + comment : ''
-				].join('\r\r')
-			);
+						comment ? 'The feeback was:\r\r' + comment : ''
+					].join('\r\r');
+				}
+
+				mailer.notifyByEmail(
+					owner.email,
+					'Your goal evidence has been ' + (achieve ? 'approved' : 'rejected'),
+					message
+				);
+			});
 		}
 	};
 

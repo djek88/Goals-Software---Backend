@@ -1,6 +1,7 @@
 var http = require('http');
 var async = require('async');
 var moment = require('moment-timezone');
+var qt = require('quickthumb');
 var ApiError = require('../../../server/lib/error/Api-error');
 
 module.exports = function(Customer) {
@@ -26,6 +27,10 @@ module.exports = function(Customer) {
 	Customer.disableRemoteMethod('__update__Social', false);
 	Customer.disableRemoteMethod('__get__Social', false);
 	Customer.disableRemoteMethod('__destroy__Social', false);
+	Customer.disableRemoteMethod('__create__GroupPreferences', false);
+	Customer.disableRemoteMethod('__update__GroupPreferences', false);
+	Customer.disableRemoteMethod('__get__GroupPreferences', false);
+	Customer.disableRemoteMethod('__destroy__GroupPreferences', false);
 
 	// UploadAvatar request
 	Customer.remoteMethod('uploadAvatar', {
@@ -55,14 +60,17 @@ module.exports = function(Customer) {
 	});
 
 	Customer.prototype.uploadAvatar = function(req, res, next) {
-		var Container = Customer.app.models.AvatarsContainer;
-		var customerId = this._id;
+		var Container = Customer.app.models.CustomerAvatars;
+		var customer = this;
+
+		// if don't have file
+		if (!req._readableState.length) return next(ApiError.incorrectParam('file'));
 
 		Container.getContainers(function (err, containers) {
 			if (err) return next(err);
 
-			if (containers.some(function(c) {return c.name === customerId;})) {
-				Container.destroyContainer(customerId, createContainerSaveFile);
+			if (containers.some(function(c) {return c.name === customer._id;})) {
+				Container.destroyContainer(customer._id, createContainerSaveFile);
 			} else {
 				createContainerSaveFile(null);
 			}
@@ -71,58 +79,64 @@ module.exports = function(Customer) {
 		function createContainerSaveFile(err) {
 			if (err) return next(err);
 
-			Container.createContainer({ name: customerId }, function(err, c) {
+			Container.createContainer({ name: customer._id }, function(err, c) {
 				if (err) return next(err);
 
 				var options = {
-					container: customerId,
+					container: customer._id,
 					allowedContentTypes: function(file) {
 						// if file type incorect return array with non existent mime types
 						if (!file.type.includes('image/')) return ['image/*'];
 					}
-					//maxFileSize: can pass a function(file, req, res) or number
+					//maxFileSize: can pass a function(file, req, res) or number, default is 10 MB
 					//acl: can pass a function(file, req, res)
 				};
 
-				Container.upload(req, res, options, next);
+				Container.upload(req, res, options, function(err, filesObj) {
+					if (err) return next(err);
+
+					var file = filesObj.files.file[0];
+
+					if (file.type === 'image/gif') return setAvatarField(file);
+
+					var containerPath = Container.app.datasources.customerAvatarsStorage.settings.root;
+					var filePath = containerPath + '/' + file.container + '/' + file.name;
+
+					qt.convert({src: filePath, dst: filePath, height: 400}, function(err, path) {
+						if (err) return next(err);
+
+						setAvatarField(file);
+					});
+				});
 			});
+		}
+
+		function setAvatarField(file) {
+			customer.updateAttributes({
+				avatar: '/CustomerAvatars/' + file.container + '/download/' + file.name
+			}, next);
 		}
 	};
 
 	Customer.prototype.baseCustomerInfo = function(next) {
-		next(null, {
-			_id: this._id,
-			firstName: this.firstName,
-			lastName: this.lastName,
-			description: this.description,
-			avatar: this.avatar,
-			social: this.social
+		var customer = this;
+		var allowedInfo = {};
+
+		Customer.settings.whiteListFields.forEach(function(property) {
+			allowedInfo[property] = customer[property];
 		});
+
+		next(null, allowedInfo);
 	};
 
 	Customer.devLoginnnnnnnnnnnnnnnnnnnnnnnnn = function(credentials, next) {
 		Customer.login(credentials, 'user', next);
 	};
 
-	// Update avatar field in model
-	Customer.afterRemote('prototype.uploadAvatar', setAvatarField);
 	// Login by FHQ sessionId
 	Customer.beforeRemote('login', loginBySessionId);
 	// Deny set manualy id, fhqSessionId, avatar, email, password fields
 	Customer.beforeRemote('prototype.updateAttributes', delProperties);
-
-	function setAvatarField(ctx, modelInstance, next) {
-		var customer = ctx.instance;
-		var fileName = ctx.result.files.file[0].name;
-
-		customer.avatar = '/AvatarsContainers/' + customer._id + '/download/' + fileName;
-		customer.save(function(err, result) {
-			if (err) return next(err);
-
-			ctx.result = result;
-			next();
-		});
-	}
 
 	function loginBySessionId(ctx, customer, next) {
 		var sessionId = ctx.req.body._sessionId;

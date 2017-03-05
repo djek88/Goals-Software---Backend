@@ -3,18 +3,19 @@ var shared = require('../socket/shared');
 var async = require('async');
 
 module.exports = function(app) {
-	if (!app.socketServer) return;
-
 	var job = new CronJob({
 		cronTime: '00 */05 * * * *',
-		//cronTime: '*/10 * * * * *', // every 10 sec
+		//cronTime: '*/5 * * * * *', // every 5 sec
 		onTick: onTick,
 		start: true
 	});
 
 	function onTick() {
-		var startNsp = app.socketServer.nsps['/startSession'];
+		checkNotAttendedSessions();
+		checkFailedSessions();
+	}
 
+	function checkNotAttendedSessions() {
 		app.models.Session.find({
 			where: {
 				startAt: {lt: Date.now()},
@@ -25,20 +26,40 @@ module.exports = function(app) {
 		}, function(err, sessions) {
 			if (err) return;
 
-			async.each(sessions, function(session, callback) {
+			var startNsp = app.socketServer.nsps['/startSession'];
+
+			async.each(sessions, function(session) {
 				var roomName = session._groupId;
 				var onlineCount = shared.onlineIdsInRoom(startNsp, roomName).length;
 
-				if (onlineCount) return callback();
+				if (!onlineCount) {
+					shared.updateGroupAndSessAfterFinish(session.Group(), session);
+				}
+			});
+		});
+	}
 
-				async.waterfall([
-					session.Group.getAsync.bind(session),
-					function(group, cb) {
-						if (!group) return cb();
+	function checkFailedSessions() {
+		app.models.Session.find({
+			where: {
+				startAt: {lt: Date.now()},
+				_participantIds: {neq: []},
+				and: [{state: {neq: []}}, {state: {neq: [-1, -1, -1]}}],
+				_facilitatorId: {neq: null}
+			},
+			include: 'Group'
+		}, function(err, sessions) {
+			if (err) return;
 
-						shared.updateGroupAndSessAfterFinish(group, session, cb);
-					}
-				], callback);
+			var goesNsp = app.socketServer.nsps['/goesSession'];
+
+			async.each(sessions, function(session) {
+				var roomName = session._groupId;
+				var onlineCount = shared.onlineIdsInRoom(goesNsp, roomName).length;
+
+				if (!onlineCount) {
+					shared.updateGroupAndSessAfterFinish(session.Group(), session);
+				}
 			});
 		});
 	}

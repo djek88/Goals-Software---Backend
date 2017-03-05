@@ -22,7 +22,7 @@ module.exports = function(io) {
 function onJoin(roomName, callback) {
 	var socket = this;
 	var Group = app.models.Group;
-	var userId = socket.user._id.toString();
+	var userId = socket.user._id;
 	var groupFilter = {
 		where: {
 			_id: roomName,
@@ -31,21 +31,17 @@ function onJoin(roomName, callback) {
 		include: 'NextSession'
 	};
 
-	async.waterfall([
-		Group.findOne.bind(Group, groupFilter),
-		function(group, cb) {
-			if (!group) return cb(true);
-
-			group.NextSession.getAsync(cb);
+	Group.findOne(groupFilter, function(err, group) {
+		if (err || !group || !group.NextSession()) return callback('Something went wrong.');
+		if (group.NextSession()._facilitatorId ||
+			group.NextSession()._participantIds.length) {
+			return callback('Session already going!');
 		}
-	], function(err, session) {
-		if (err || !session) return callback('Something went wrong.');
-		if (session._facilitatorId || 
-			session._participantIds.length) return callback('Session already going!');
 
 		socket.join(roomName);
 		socket.broadcast.to(roomName).emit('user:joined', userId);
 		callback(null, shared.onlineIdsInRoom(socket.nsp, roomName));
+
 	});
 }
 
@@ -53,27 +49,21 @@ function sessionStart(roomName, callback) {
 	var socket = this;
 	var Group = app.models.Group;
 	var onlineUserIds = shared.onlineIdsInRoom(socket.nsp, roomName);
-	var isJoinedToRoom = onlineUserIds.indexOf(socket.user._id.toString()) >= 0;
+	var isJoinedToRoom = onlineUserIds.indexOf(socket.user._id) >= 0;
 
 	if (!isJoinedToRoom) return callback('You are not joined to room!');
-	if (onlineUserIds.length < 2) return callback('You must have two or more members online to start the session!');
 
 	async.waterfall([
 		Group.findById.bind(Group, roomName, {include: 'NextSession'}),
 		function(group, cb) {
-			if (!group) return cb(new Error('Group not found!'));
+			var err = isForbidToStart(group);
+			if (err) return cb(err);
 
-			group.NextSession.getAsync(function(err, session) {
-				if (err) return cb(err);
-				if (session._facilitatorId) return cb(new Error('The session is already in progress!'));
-				if (Date.now() < new Date(session.startAt)) return cb(new Error('Session start time is not reached!'));
-
-				// Set facilitator, participantIds
-				session.updateAttributes({
-					_facilitatorId: socket.user._id,
-					_participantIds: onlineUserIds
-				}, cb);
-			});
+			// Set facilitator, participantIds
+			group.NextSession().updateAttributes({
+				_facilitatorId: socket.user._id,
+				_participantIds: getParticipantIds(group)
+			}, cb);
 		}
 	], function(err, session) {
 		if (err) return callback(err.message);
@@ -81,4 +71,37 @@ function sessionStart(roomName, callback) {
 		callback();
 		socket.nsp.to(roomName).emit('startSessionRoom:redirect', session._groupId);
 	});
+
+	function isForbidToStart(group) {
+		var onlineSess = !group.sessionConf.offline;
+		var withoutFacilitator = group.sessionConf.withoutFacilitator;
+
+		if (!group) return new Error('Group not found!');
+		if (group.NextSession()._facilitatorId) {
+			return new Error('The session is already in progress!');
+		}
+		if (Date.now() < new Date(group.NextSession().startAt)) {
+			return new Error('Session start time is not reached!');
+		}
+		if (onlineSess && onlineUserIds.length < 2) {
+			return new Error('You must have two or more members online to start the session!');
+		}
+		if (onlineSess && withoutFacilitator && onlineUserIds.length < 3) {
+			return new Error('You must have three or more members online to start the session!');
+		}
+	}
+
+	function getParticipantIds(group) {
+		var allUserIds = group._memberIds.concat(group._ownerId);
+		var results = group.sessionConf.offline ? allUserIds : onlineUserIds;
+
+		if (group.sessionConf.withoutFacilitator) {
+			// exclude facilitator
+			results = results.filter(function(id) {
+				return id !== socket.user._id;
+			});
+		}
+
+		return results;
+	}
 }
