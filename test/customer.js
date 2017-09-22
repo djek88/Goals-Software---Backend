@@ -1,4 +1,4 @@
-/*var fs = require('fs');
+var fs = require('fs');
 var assert = require('chai').assert;
 var async = require('async');
 var server = require('../server/server');
@@ -166,7 +166,7 @@ describe('Customer model', function() {
 					USD: 100,
 				},
 				groupPreferences:{
-					type: 1,
+					types: [1],
 					joiningFee: [1, 2],
 					monthlyFee: [3, 4],
 					yearlyFee: [5, 6],
@@ -238,4 +238,4 @@ describe('Customer model', function() {
 
 function reset(instance, cb) {
 	instance.updateAttributes(instance, cb);
-}*/
+}

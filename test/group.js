@@ -1,4 +1,4 @@
-/*var fs = require('fs');
+var fs = require('fs');
 var _ = require('lodash');
 var assert = require('chai').assert;
 var async = require('async');
@@ -442,7 +442,10 @@ describe('Group model', function() {
 						offline: false,
 						timeZone: "Europe/Zaporozhye",
 						frequencyType: 2,
-						roundLength: [50, 60, 70, 80]
+						roundLength: [50, 60, 70, 80],
+						country: '',
+						state: '',
+						city: ''
 					}
 				};
 
@@ -902,7 +905,7 @@ describe('Group model', function() {
 			it('delete success', function(done) {
 				api
 					.delete(routeHelper('deleteById', {id: curGroup._id}, ownerToken))
-					.expect(200, function(err, res) {
+					.expect(204, function(err, res) {
 						if (err) return done(err);
 
 						Group.exists(curGroup._id, function(err, exists) {
@@ -917,7 +920,7 @@ describe('Group model', function() {
 			it('afterRemote hook "deleteNextSession"', function(done) {
 				api
 					.delete(routeHelper('deleteById', {id: curGroup._id}, ownerToken))
-					.expect(200, function(err, res) {
+					.expect(204, function(err, res) {
 						if (err) return done(err);
 
 						Session.find({where: {_groupId: curGroup._id}}, function(err, results) {
@@ -932,7 +935,7 @@ describe('Group model', function() {
 			it('afterRemote hook "deleteRelatedGoals"', function(done) {
 				api
 					.delete(routeHelper('deleteById', {id: curGroup._id}, ownerToken))
-					.expect(200, function(err, res) {
+					.expect(204, function(err, res) {
 						if (err) return done(err);
 
 						Goal.find({where: {_groupId: curGroup._id}}, function(err, results) {
@@ -1019,4 +1022,4 @@ describe('Group model', function() {
 	function modelToObj(model) {
 		return JSON.parse(JSON.stringify(model));
 	}
-});*/
+});

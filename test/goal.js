@@ -1,4 +1,4 @@
-/*var fs = require('fs');
+var fs = require('fs');
 var _ = require('lodash');
 var assert = require('chai').assert;
 var async = require('async');
@@ -968,4 +968,4 @@ describe('Goal model', function() {
 	function modelToObj(model) {
 		return JSON.parse(JSON.stringify(model));
 	}
-});*/
+});
